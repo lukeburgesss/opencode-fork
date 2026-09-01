@@ -1103,7 +1103,7 @@ const onOutputItemAdded = (state: ParserState, event: NormalizedEvent): StepResu
       tools: ToolStream.start(state.tools, item.id, {
         id: item.call_id,
         name: item.name ?? "",
-        ...(item.namespace === undefined ? {} : { namespace: item.namespace }),
+        namespace: item.namespace,
         input: item.arguments ?? "",
         providerMetadata: metadata,
       }),
@@ -1113,7 +1113,7 @@ const onOutputItemAdded = (state: ParserState, event: NormalizedEvent): StepResu
       LLMEvent.toolInputStart({
         id: item.call_id,
         name: item.name ?? "",
-        ...(item.namespace === undefined ? {} : { namespace: item.namespace }),
+        namespace: item.namespace,
         providerMetadata: metadata,
       }),
     ],
