@@ -25,99 +25,108 @@ const tab: Browser.Tab = {
 const state: Browser.State = { tabs: [tab], focusedTabID: tab.id }
 const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 
-const fixture = Effect.gen(function* () {
-  const directory = yield* tmpdirScoped("opencode-browser-")
-  const config = path.join(directory.path, "config")
-  yield* Effect.promise(() => mkdir(config))
-  const location = Location.Ref.make({ directory: AbsolutePath.make(directory.path) })
-  const opencode = yield* OpenCode.create({
-    database: { path: ":memory:" },
-    config: {
-      directory: config,
-      project: false,
-      content: JSON.stringify({
-        plugins: ["-opencode.browser"],
-        permissions: [{ action: "*", resource: "*", effect: "allow" }],
+const fixture = (rules: { action: string; resource: string; effect: "allow" | "deny" }[] = []) =>
+  Effect.gen(function* () {
+    const directory = yield* tmpdirScoped("opencode-browser-")
+    const config = path.join(directory.path, "config")
+    yield* Effect.promise(() => mkdir(config))
+    const location = Location.Ref.make({ directory: AbsolutePath.make(directory.path) })
+    const opencode = yield* OpenCode.create({
+      database: { path: ":memory:" },
+      config: {
+        directory: config,
+        project: false,
+        content: JSON.stringify({
+          plugins: ["-opencode.browser"],
+          permissions: [{ action: "*", resource: "*", effect: "allow" }, ...rules],
+        }),
+      },
+      models: { fetch: false },
+      fs: { filewatcher: false, fff: false },
+    })
+    const captured = Promise.withResolvers<readonly Info[]>()
+    const permissions: Array<{ action: string; resources: readonly string[] }> = []
+    yield* opencode.plugin({ ...plugin, id: "browser-test" })
+    yield* opencode.plugin({
+      id: "browser-test-observer",
+      effect: (ctx) =>
+        Effect.gen(function* () {
+          yield* ctx.tool.transform((draft) => {
+            if (ctx.location.directory !== location.directory) return
+            const tools = draft
+              .list()
+              .filter(
+                (tool) => tool.options?.namespace === "browser" || tool.options?.namespace?.startsWith("browser."),
+              )
+            if (tools.length) captured.resolve(tools)
+          })
+          yield* ctx.permission.hook("evaluate", (event) =>
+            Effect.sync(() => permissions.push({ action: event.action, resources: event.resources })),
+          )
+        }).pipe(Effect.orDie),
+    })
+    yield* opencode.plugin.list({ location })
+    const tools = yield* Effect.promise(() => captured.promise)
+    const session = yield* opencode.sessions.create({ location })
+    const rpc = opencode.rpc(Browser.Definition)
+    const events = yield* Queue.unbounded<Rpc.EventPayload<typeof Browser.Definition, "control">>()
+    yield* rpc.events.subscribe("control").pipe(
+      Stream.runForEach((event) => Queue.offer(events, event)),
+      Effect.forkScoped({ startImmediately: true }),
+    )
+    yield* opencode.events.subscribe().pipe(
+      Stream.filter((event) => event.type === "server.connected"),
+      Stream.runHead,
+      Effect.timeout("5 seconds"),
+    )
+    const next = Queue.take(events).pipe(Effect.timeout("5 seconds"))
+    const context = {
+      sessionID: session.id,
+      agent: Agent.ID.make("build"),
+      messageID: SessionMessage.ID.create(),
+      id: Tool.CallID.make(crypto.randomUUID()),
+      progress: () => Effect.void,
+    }
+    const execute = (action: Browser.Action) => {
+      const tool = tools.find((tool) => `${tool.options?.namespace}.${tool.name}` === `browser.${action.type}`)
+      if (!tool) throw new Error(`Missing browser tool ${action.type}`)
+      return tool.execute(action, context)
+    }
+    return {
+      opencode,
+      location,
+      rpc,
+      tools,
+      permissions,
+      next,
+      execute,
+      context,
+      queued: () => Queue.size(events),
+      attach: Effect.fn(function* (connectionID: string) {
+        const input = { sessionID: session.id, connectionID }
+        const lifetime = yield* rpc.attach({ ...input, version: 2 }, { location }).pipe(Effect.forkScoped)
+        expect((yield* next).data).toEqual({ type: "attached", connectionID, version: 2 })
+        return { input, lifetime }
       }),
-    },
-    models: { fetch: false },
-    fs: { filewatcher: false, fff: false },
+      command: Effect.fn(function* (action: Browser.Action) {
+        const pending = yield* execute(action).pipe(Effect.forkScoped)
+        const event = yield* next.pipe(
+          Effect.raceFirst(Fiber.join(pending).pipe(Effect.andThen(Effect.die("Completed without a command")))),
+        )
+        if (event.data.type !== "command") throw new Error(`Expected command: ${event.data.type}`)
+        expect(Object.keys(event.data).sort()).toEqual(["connectionID", "requestID", "type"])
+        const input = { sessionID: session.id, connectionID: event.data.connectionID, requestID: event.data.requestID }
+        const command = yield* rpc.command(input, { location })
+        return { input, command, pending }
+      }),
+    }
   })
-  const captured = Promise.withResolvers<readonly Info[]>()
-  yield* opencode.plugin({ ...plugin, id: "browser-test" })
-  yield* opencode.plugin({
-    id: "browser-test-observer",
-    effect: (ctx) =>
-      ctx.tool
-        .transform((draft) => {
-          if (ctx.location.directory !== location.directory) return
-          const tools = draft
-            .list()
-            .filter((tool) => tool.options?.namespace === "browser" || tool.options?.namespace?.startsWith("browser."))
-          if (tools.length) captured.resolve(tools)
-        })
-        .pipe(Effect.orDie),
-  })
-  yield* opencode.plugin.list({ location })
-  const tools = yield* Effect.promise(() => captured.promise)
-  const session = yield* opencode.sessions.create({ location })
-  const rpc = opencode.rpc(Browser.Definition)
-  const events = yield* Queue.unbounded<Rpc.EventPayload<typeof Browser.Definition, "control">>()
-  yield* rpc.events.subscribe("control").pipe(
-    Stream.runForEach((event) => Queue.offer(events, event)),
-    Effect.forkScoped({ startImmediately: true }),
-  )
-  yield* opencode.events.subscribe().pipe(
-    Stream.filter((event) => event.type === "server.connected"),
-    Stream.runHead,
-    Effect.timeout("5 seconds"),
-  )
-  const next = Queue.take(events).pipe(Effect.timeout("5 seconds"))
-  const context = {
-    sessionID: session.id,
-    agent: Agent.ID.make("build"),
-    messageID: SessionMessage.ID.create(),
-    id: Tool.CallID.make(crypto.randomUUID()),
-    progress: () => Effect.void,
-  }
-  const execute = (action: Browser.Action) => {
-    const tool = tools.find((tool) => `${tool.options?.namespace}.${tool.name}` === `browser.${action.type}`)
-    if (!tool) throw new Error(`Missing browser tool ${action.type}`)
-    return tool.execute(action, context)
-  }
-  return {
-    opencode,
-    location,
-    rpc,
-    tools,
-    next,
-    execute,
-    context,
-    attach: Effect.fn(function* (connectionID: string) {
-      const input = { sessionID: session.id, connectionID }
-      const lifetime = yield* rpc.attach({ ...input, version: 2 }, { location }).pipe(Effect.forkScoped)
-      expect((yield* next).data).toEqual({ type: "attached", connectionID, version: 2 })
-      return { input, lifetime }
-    }),
-    command: Effect.fn(function* (action: Browser.Action) {
-      const pending = yield* execute(action).pipe(Effect.forkScoped)
-      const event = yield* next.pipe(
-        Effect.raceFirst(Fiber.join(pending).pipe(Effect.andThen(Effect.die("Completed without a command")))),
-      )
-      if (event.data.type !== "command") throw new Error(`Expected command: ${event.data.type}`)
-      expect(Object.keys(event.data).sort()).toEqual(["connectionID", "requestID", "type"])
-      const input = { sessionID: session.id, connectionID: event.data.connectionID, requestID: event.data.requestID }
-      const command = yield* rpc.command(input, { location })
-      return { input, command, pending }
-    }),
-  }
-})
 
 test(
   "browser RPC preserves ownership, cancellation, replacement and unload without broadcasting commands",
   () =>
     Effect.gen(function* () {
-      const host = yield* fixture
+      const host = yield* fixture()
       const options = { location: host.location }
       expect(yield* host.execute({ type: "tabs.list" }).pipe(Effect.flip)).toMatchObject({
         message: expect.stringContaining("No desktop browser"),
@@ -158,7 +167,7 @@ test(
   "the complete browser catalog executes through Code Mode with validated structured results",
   () =>
     Effect.gen(function* () {
-      const host = yield* fixture
+      const host = yield* fixture()
       yield* Effect.gen(function* () {
         const tools = yield* Tool.Service
         yield* tools.transform((editor) => host.tools.forEach((tool) => editor.add(tool)))
@@ -188,6 +197,21 @@ test(
           { location: host.location },
         )
         expect((yield* Fiber.join(pending)).output).toMatchObject({ output: tab.id })
+        const evaluation = yield* run(
+          `return (await tools.browser.evaluate({tabID:${JSON.stringify(tab.id)},script:"1"})).value`,
+        ).pipe(Effect.forkScoped)
+        const requested = (yield* host.next).data
+        if (requested.type !== "command") throw new Error("Expected command")
+        yield* host.rpc.result(
+          {
+            ...attached.input,
+            requestID: requested.requestID,
+            outcome: { type: "success", result: { value: { tab, value: 1 }, files: [] } },
+          },
+          { location: host.location },
+        )
+        expect((yield* Fiber.join(evaluation)).output).toMatchObject({ output: "1" })
+        expect(host.permissions).toContainEqual({ action: "browser", resources: [tab.url] })
         const invalid = yield* host.command({ type: "tabs.list" })
         yield* host.rpc.result(
           {
@@ -265,7 +289,7 @@ test(
   "timeout errors explain unknown outcomes instead of encouraging duplicate actions",
   () =>
     Effect.gen(function* () {
-      const host = yield* fixture
+      const host = yield* fixture()
       const attached = yield* host.attach("timeout")
       yield* host.rpc.state({ ...attached.input, state }, { location: host.location })
       yield* Effect.gen(function* () {
@@ -282,10 +306,109 @@ test(
 )
 
 test(
+  "browser URL denial runs before dispatch and uses a canonical URL",
+  () =>
+    Effect.gen(function* () {
+      const host = yield* fixture([{ action: "browser", resource: "https://blocked.example/*", effect: "deny" }])
+      const attached = yield* host.attach("denied-url")
+      yield* host.rpc.state({ ...attached.input, state }, { location: host.location })
+      const error = yield* host
+        .execute({ type: "navigate", tabID: tab.id, url: "https://BLOCKED.EXAMPLE/private" })
+        .pipe(Effect.flip)
+      expect(error.message).toBe("Browser permission check failed.")
+      expect(yield* host.queued()).toBe(0)
+    }).pipe(Effect.scoped, Effect.runPromise),
+  15_000,
+)
+
+test(
+  "uploads enforce server read permissions before any browser command",
+  () =>
+    Effect.gen(function* () {
+      const host = yield* fixture([{ action: "read", resource: "*", effect: "deny" }])
+      const attached = yield* host.attach("denied-file")
+      yield* host.rpc.state({ ...attached.input, state }, { location: host.location })
+      const file = path.join(host.location.directory, "private.txt")
+      yield* Effect.promise(() => Bun.write(file, "server secret"))
+      const error = yield* host
+        .execute({ type: "files.upload", tabID: tab.id, ref: Browser.Ref.make("e1"), paths: [file] })
+        .pipe(Effect.flip)
+      expect(error.message).toBe("Browser permission check failed.")
+      expect(yield* host.queued()).toBe(0)
+    }).pipe(Effect.scoped, Effect.runPromise),
+  15_000,
+)
+
+test(
+  "uploads enforce external-directory permissions on resolved server paths",
+  () =>
+    Effect.gen(function* () {
+      const host = yield* fixture([{ action: "external_directory", resource: "*", effect: "deny" }])
+      const external = yield* tmpdirScoped("opencode-browser-external-")
+      const file = path.join(external.path, "outside.txt")
+      yield* Effect.promise(() => Bun.write(file, "outside"))
+      const attached = yield* host.attach("external")
+      yield* host.rpc.state({ ...attached.input, state }, { location: host.location })
+      expect(
+        (yield* host
+          .execute({ type: "files.drop", tabID: tab.id, ref: Browser.Ref.make("e1"), paths: [file] })
+          .pipe(Effect.flip)).message,
+      ).toBe("Browser permission check failed.")
+      expect(yield* host.queued()).toBe(0)
+    }).pipe(Effect.scoped, Effect.runPromise),
+  15_000,
+)
+
+test(
+  "network details do not disclose a denied request URL's body",
+  () =>
+    Effect.gen(function* () {
+      const host = yield* fixture([{ action: "browser", resource: "https://blocked.example/*", effect: "deny" }])
+      const attached = yield* host.attach("network")
+      yield* host.rpc.state({ ...attached.input, state }, { location: host.location })
+      const command = yield* host.command({ type: "network.get", tabID: tab.id, id: "request", includeBody: true })
+      yield* host.rpc.result(
+        {
+          ...command.input,
+          outcome: {
+            type: "success",
+            result: {
+              value: {
+                tab,
+                request: {
+                  id: "request",
+                  url: "https://blocked.example/private",
+                  method: "GET",
+                  resourceType: "fetch",
+                  timestampMs: 1,
+                  state: "completed",
+                  statusCode: 200,
+                  durationMs: 1,
+                },
+                requestHeaders: [],
+                responseHeaders: [],
+                headersTruncated: false,
+                requestBody: { state: "empty" },
+                responseBody: { state: "text", text: "must-not-be-disclosed", truncated: false },
+              },
+              files: [],
+            },
+          },
+        },
+        { location: host.location },
+      )
+      const failure = yield* Fiber.join(command.pending).pipe(Effect.flip)
+      expect(failure.message).toBe("Browser permission check failed.")
+      expect(JSON.stringify(failure)).not.toContain("must-not-be-disclosed")
+    }).pipe(Effect.scoped, Effect.runPromise),
+  15_000,
+)
+
+test(
   "browser file transfers copy bytes between disjoint client and server filesystems",
   () =>
     Effect.gen(function* () {
-      const host = yield* fixture
+      const host = yield* fixture()
       const client = yield* tmpdirScoped("opencode-desktop-files-")
       const attached = yield* host.attach("files")
       const options = { location: host.location }
@@ -337,6 +460,8 @@ test(
         mime: "image/png",
       })
       expect(JSON.stringify(result.output)).not.toContain(png)
+      expect(host.permissions).toContainEqual({ action: "browser", resources: [tab.url] })
+      expect(host.permissions).toContainEqual({ action: "read", resources: [serverPath] })
     }).pipe(Effect.scoped, Effect.runPromise),
   15_000,
 )
