@@ -1,9 +1,10 @@
 import { ServerAuth } from "@/server/auth"
-import { Effect, Encoding, Layer, Redacted } from "effect"
+import { Effect, Encoding, Layer, Option, Redacted } from "effect"
 import { HttpEffect, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { HttpApiError, HttpApiMiddleware } from "effect/unstable/httpapi"
 import { hasPtyConnectTicketURL } from "@/server/shared/pty-ticket"
 import { isPublicUIPath } from "@/server/shared/public-ui"
+import { DeviceStore } from "@opencode-ai/server/device"
 export {
   Authorization as ServerAuthorization,
   authorizationLayer as serverAuthorizationLayer,
@@ -74,6 +75,25 @@ function credentialFromRequest(request: HttpServerRequest.HttpServerRequest) {
   return credentialFromURL(new URL(request.url, "http://localhost"), request)
 }
 
+function isDeviceClaim(request: HttpServerRequest.HttpServerRequest) {
+  if (request.method !== "POST") return false
+  return new URL(request.url, "http://localhost").pathname === "/api/device/claim"
+}
+
+// Phones authenticate with long-lived `dev_` device tokens. Browsers and
+// EventSource cannot always set headers, so accept a Bearer token in the
+// Authorization header or a raw token via ?auth_token=.
+function bearerFromRequest(request: HttpServerRequest.HttpServerRequest) {
+  const header = /^Bearer\s+(.+)$/i.exec(request.headers.authorization ?? "")
+  if (header) return header[1].trim() || undefined
+  const query = new URL(request.url, "http://localhost").searchParams.get(AUTH_TOKEN_QUERY)
+  if (!query) return undefined
+  const prefixed = /^Bearer\s+(.+)$/i.exec(query)
+  if (prefixed) return prefixed[1].trim() || undefined
+  if (!query.includes(":") && !query.includes("=")) return query.trim() || undefined
+  return undefined
+}
+
 function credentialFromURL(url: URL, request: HttpServerRequest.HttpServerRequest) {
   const token = url.searchParams.get(AUTH_TOKEN_QUERY)
   if (token) return decodeCredential(token)
@@ -119,10 +139,20 @@ export const authorizationLayer = Layer.effect(
   Authorization,
   Effect.gen(function* () {
     const config = yield* ServerAuth.Config
+    const device = yield* Effect.serviceOption(DeviceStore.Service)
     if (!ServerAuth.required(config)) return Authorization.of((effect) => effect)
     return Authorization.of((effect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
+        // Pairing codes are single-use secrets: claiming is public by design.
+        if (isDeviceClaim(request)) return yield* effect
+        const credential = yield* credentialFromRequest(request)
+        if (ServerAuth.authorized(credential, config)) return yield* effect
+        const bearer = bearerFromRequest(request)
+        if (bearer && Option.isSome(device)) {
+          const deviceID = yield* device.value.verify(bearer).pipe(Effect.orElseSucceed(() => undefined))
+          if (deviceID) return yield* effect
+        }
         return yield* credentialFromRequest(request).pipe(
           Effect.flatMap((credential) => validateCredential(effect, credential, config)),
         )

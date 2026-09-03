@@ -40,12 +40,16 @@ const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const { db } = yield* Database.Service
-    yield* db.run(
-      sql`CREATE TABLE IF NOT EXISTS device_pairing (code TEXT PRIMARY KEY, name TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL)`,
-    )
-    yield* db.run(
-      sql`CREATE TABLE IF NOT EXISTS device_token (id TEXT PRIMARY KEY, name TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, created_at INTEGER NOT NULL, last_used_at INTEGER, revoked INTEGER NOT NULL DEFAULT 0)`,
-    )
+    yield* db
+      .run(
+        sql`CREATE TABLE IF NOT EXISTS device_pairing (code TEXT PRIMARY KEY, name TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL)`,
+      )
+      .pipe(Effect.orDie)
+    yield* db
+      .run(
+        sql`CREATE TABLE IF NOT EXISTS device_token (id TEXT PRIMARY KEY, name TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, created_at INTEGER NOT NULL, last_used_at INTEGER, revoked INTEGER NOT NULL DEFAULT 0)`,
+      )
+      .pipe(Effect.orDie)
 
     return Service.of({
       pair: Effect.fn("DeviceStore.pair")(function* (name?: string) {

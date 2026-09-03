@@ -66,6 +66,8 @@ import { SessionProjector } from "@opencode-ai/core/session/projector"
 import { SessionV2 } from "@opencode-ai/core/session"
 import { SessionExecution } from "@opencode-ai/core/session/execution"
 import * as SessionExecutionLocal from "@opencode-ai/core/session/execution/local"
+import { ApprovalQueue } from "@opencode-ai/core/approvals/queue"
+import { DeviceStore } from "@opencode-ai/server/device"
 import { lazy } from "@/util/lazy"
 import { CorsConfig, isAllowedCorsOrigin, type CorsOptions } from "@opencode-ai/server/cors"
 import { serveUIEffect } from "@/server/shared/ui"
@@ -231,6 +233,8 @@ const app = LayerNode.group([
   Question.node,
   Permission.node,
   PermissionSaved.node,
+  ApprovalQueue.node,
+  DeviceStore.node,
   Todo.node,
   Session.node,
   SessionProjector.node,
