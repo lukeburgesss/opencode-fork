@@ -25,7 +25,7 @@ const tab: Browser.Tab = {
 const state: Browser.State = { tabs: [tab], focusedTabID: tab.id }
 const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 
-const fixture = (rules: { action: string; resource: string; effect: "allow" | "deny" }[] = []) =>
+const fixture = (rules: { action: string; resource: string; effect: "allow" | "deny" | "ask" }[] = []) =>
   Effect.gen(function* () {
     const directory = yield* tmpdirScoped("opencode-browser-")
     const config = path.join(directory.path, "config")
@@ -315,8 +315,60 @@ test(
       const error = yield* host
         .execute({ type: "navigate", tabID: tab.id, url: "https://BLOCKED.EXAMPLE/private" })
         .pipe(Effect.flip)
-      expect(error.message).toBe("Browser permission check failed.")
+      expect(error.message).toContain('Permission "browser" was not granted for browser.navigate')
+      expect(error.message).toContain("Do not retry through another tool")
       expect(yield* host.queued()).toBe(0)
+    }).pipe(Effect.scoped, Effect.runPromise),
+  15_000,
+)
+
+test(
+  "permission feedback reaches Code Mode without dispatching the rejected browser action",
+  () =>
+    Effect.gen(function* () {
+      const host = yield* fixture([{ action: "browser", resource: "*", effect: "ask" }])
+      const attached = yield* host.attach("feedback")
+      yield* host.rpc.state({ ...attached.input, state }, { location: host.location })
+      yield* Effect.gen(function* () {
+        const tools = yield* Tool.Service
+        yield* tools.transform((editor) => host.tools.forEach((tool) => editor.add(tool)))
+        const snapshot = yield* tools.snapshot()
+        const asked = yield* host.opencode.events.subscribe().pipe(
+          Stream.filter((event) => event.type === "permission.asked"),
+          Stream.filter((event) => event.data.sessionID === host.context.sessionID),
+          Stream.runHead,
+          Effect.timeout("5 seconds"),
+          Effect.forkScoped({ startImmediately: true }),
+        )
+        const pending = yield* snapshot
+          .execute({
+            ...host.context,
+            call: {
+              type: "tool-call",
+              id: crypto.randomUUID(),
+              name: "execute",
+              input: { code: `return await tools.browser.click({tabID:${JSON.stringify(tab.id)},ref:"e1"})` },
+            },
+          })
+          .pipe(Effect.forkScoped)
+        const event = yield* Fiber.join(asked)
+        if (event._tag !== "Some") throw new Error("Expected a permission request")
+        yield* host.opencode.permission.reply({
+          sessionID: host.context.sessionID,
+          requestID: event.value.data.id,
+          reply: "reject",
+          message: "Do not submit the form; inspect the preview instead.",
+        })
+        const result = Schema.decodeUnknownSync(Schema.Struct({ error: Schema.Boolean, output: Schema.String }))(
+          (yield* Fiber.join(pending)).output,
+        )
+        expect(result.error).toBe(true)
+        expect(result.output).toContain('[browser.permission_denied] Permission "browser"')
+        expect(result.output).toContain("User feedback: Do not submit the form; inspect the preview instead.")
+        expect(yield* host.queued()).toBe(0)
+      }).pipe(
+        Effect.provide(AppNodeBuilder.build(Tool.node, [Location.node.replace(Location.boundNode(host.location))])),
+      )
     }).pipe(Effect.scoped, Effect.runPromise),
   15_000,
 )
@@ -333,7 +385,7 @@ test(
       const error = yield* host
         .execute({ type: "files.upload", tabID: tab.id, ref: Browser.Ref.make("e1"), paths: [file] })
         .pipe(Effect.flip)
-      expect(error.message).toBe("Browser permission check failed.")
+      expect(error.message).toContain('Permission "read" was not granted for browser.files.upload')
       expect(yield* host.queued()).toBe(0)
     }).pipe(Effect.scoped, Effect.runPromise),
   15_000,
@@ -353,7 +405,7 @@ test(
         (yield* host
           .execute({ type: "files.drop", tabID: tab.id, ref: Browser.Ref.make("e1"), paths: [file] })
           .pipe(Effect.flip)).message,
-      ).toBe("Browser permission check failed.")
+      ).toContain('Permission "external_directory" was not granted for browser.files.drop')
       expect(yield* host.queued()).toBe(0)
     }).pipe(Effect.scoped, Effect.runPromise),
   15_000,
@@ -398,7 +450,7 @@ test(
         { location: host.location },
       )
       const failure = yield* Fiber.join(command.pending).pipe(Effect.flip)
-      expect(failure.message).toBe("Browser permission check failed.")
+      expect(failure.message).toContain('Permission "browser" was not granted for browser.network.get')
       expect(JSON.stringify(failure)).not.toContain("must-not-be-disclosed")
     }).pipe(Effect.scoped, Effect.runPromise),
   15_000,
