@@ -109,3 +109,19 @@ export class PtyNotFoundError extends Schema.TaggedErrorClass<PtyNotFoundError>(
   },
   { httpApiStatus: 404 },
 ) {}
+
+export class PaymentRequiredError extends Schema.TaggedErrorClass<PaymentRequiredError>()(
+  "PaymentRequiredError",
+  {
+    message: Schema.String,
+    costUSD: Schema.optional(Schema.Finite),
+    capUSD: Schema.optional(Schema.Finite),
+  },
+  { httpApiStatus: 402 },
+) {}
+
+export class TooManyRequestsError extends Schema.TaggedErrorClass<TooManyRequestsError>()(
+  "TooManyRequestsError",
+  { message: Schema.String },
+  { httpApiStatus: 429 },
+) {}

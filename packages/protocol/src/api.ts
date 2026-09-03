@@ -23,6 +23,8 @@ import { CredentialGroup } from "./groups/credential"
 import { DeviceGroup } from "./groups/device"
 import { ProjectCopyGroup } from "./groups/project-copy"
 import { AsyncRunGroup } from "./groups/async-run"
+import { ScheduleGroup } from "./groups/schedules"
+import { SpendGroup } from "./groups/spend"
 
 // Protocol owns middleware placement, while Server injects concrete keys so Core service identities stay downstream.
 const makeApiFromGroup = <
@@ -57,6 +59,8 @@ const makeApiFromGroup = <
     .add(ReferenceGroup.middleware(locationMiddleware))
     .add(ProjectCopyGroup.middleware(locationMiddleware))
     .add(AsyncRunGroup)
+    .add(ScheduleGroup)
+    .add(SpendGroup)
     .annotateMerge(
       OpenApi.annotations({
         title: "opencode HttpApi",

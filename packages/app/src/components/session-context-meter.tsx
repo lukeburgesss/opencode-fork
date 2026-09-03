@@ -12,6 +12,7 @@ export function SessionContextMeter(props: { sessionID: string }) {
   const providers = useProviders(() => sdk().directory)
 
   const messages = createMemo(() => sync().data.message[props.sessionID] ?? [])
+  const session = createMemo(() => sync().session.get(props.sessionID))
   const base = createMemo(() => getSessionContext(messages(), [...providers.all().values()]))
 
   const meter = createMemo(() => {
@@ -27,11 +28,19 @@ export function SessionContextMeter(props: { sessionID: string }) {
     const cacheWrite = ctx.message.tokens.cache.write
     const eta = used >= usable ? 0 : Math.ceil((usable - used) / 10_000)
     const intl = language.intl()
+    const cost = session()?.cost ?? 0
+    const money =
+      cost > 0
+        ? new Intl.NumberFormat(intl, { style: "currency", currency: "USD" }).format(cost)
+        : undefined
     const text = [
       `${used.toLocaleString(intl)}/${usable.toLocaleString(intl)} (${pct}%)`,
       `cache ${cacheRead.toLocaleString(intl)}/${cacheWrite.toLocaleString(intl)}`,
       `compact in ~${eta}`,
-    ].join(" · ")
+      money,
+    ]
+      .filter(Boolean)
+      .join(" · ")
     return { text, color, pct }
   })
 

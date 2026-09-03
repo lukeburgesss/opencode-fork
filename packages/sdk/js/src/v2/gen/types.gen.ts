@@ -2720,6 +2720,18 @@ export type ConflictError = {
   resource?: string
 }
 
+export type PaymentRequiredError = {
+  _tag: "PaymentRequiredError"
+  message: string
+  costUSD?: number
+  capUSD?: number
+}
+
+export type TooManyRequestsError = {
+  _tag: "TooManyRequestsError"
+  message: string
+}
+
 export type ServiceUnavailableError = {
   _tag: "ServiceUnavailableError"
   message: string
@@ -2737,6 +2749,21 @@ export type UnknownError1 = {
   _tag: "UnknownError"
   message: string
   ref?: string
+}
+
+export type SessionContextUsage = {
+  used: number
+  usable: number
+  pct: number
+  cacheRead: number
+  cacheWrite: number
+  preserveBudget: number
+  etaTurns: number
+  model: {
+    providerID: string
+    modelID: string
+    contextLimit: number
+  }
 }
 
 export type SessionDurableEvent =
@@ -2788,6 +2815,71 @@ export type ProviderNotFoundError = {
   _tag: "ProviderNotFoundError"
   providerID: string
   message: string
+}
+
+export type DevicePairResponse = {
+  data: {
+    code: string
+    expires_at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type DeviceClaimResponse = {
+  data: {
+    token: string
+    deviceID: string
+    name: string
+  }
+}
+
+export type DeviceInfo = {
+  id: string
+  name: string
+  created_at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  last_used_at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type DeviceListResponse = {
+  data: Array<DeviceInfo>
+}
+
+export type ApprovalStatus = "pending" | "decided" | "expired"
+
+export type ApprovalDecision = "once" | "always" | "deny"
+
+export type ApprovalAuditEntry = {
+  decision: ApprovalDecision
+  actor: string
+  deviceID?: string
+  message?: string
+  at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type ApprovalInfo = {
+  id: string
+  sessionID?: string
+  action: string
+  resources: Array<string>
+  created_at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  expires_at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  timeout_ms: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  status: ApprovalStatus
+  decision?: ApprovalDecision
+  decided_at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  decided_by?: string
+  deviceID?: string
+  audit: Array<ApprovalAuditEntry>
+}
+
+export type ApprovalJobInfo = {
+  id: string
+  type: string
+  title?: string
+  status: "running" | "completed" | "error" | "cancelled"
+  started_at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  completed_at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  output?: string
+  error?: string
 }
 
 export type OutputFormat1 =
@@ -2958,6 +3050,47 @@ export type ProjectCopyError = {
     message: string
     forceRequired?: boolean
   }
+}
+
+export type AsyncRunTask = {
+  title: string
+  branch: string
+  directory: string
+  sessionID?: string
+  status: "pending" | "running" | "done" | "failed"
+}
+
+export type AsyncRunInfo = {
+  id: string
+  baseCommit: string
+  directory: string
+  tasks: Array<AsyncRunTask>
+  review: boolean
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type RunNotFoundError = {
+  _tag: "RunNotFoundError"
+  runID: string
+  message: string
+}
+
+export type ScheduleInfo = {
+  id: string
+  sessionID?: string
+  prompt: string
+  spec: string
+  nextRunAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  enabled: boolean
+}
+
+export type SpendSummary = {
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+  totalTokens: number
+  costUSD: number
 }
 
 export type EffectHttpApiErrorForbidden = {
@@ -11577,6 +11710,10 @@ export type V2SessionPromptErrors = {
    */
   401: UnauthorizedError
   /**
+   * PaymentRequiredError
+   */
+  402: PaymentRequiredError
+  /**
    * SessionNotFoundError
    */
   404: SessionNotFoundError
@@ -11584,6 +11721,10 @@ export type V2SessionPromptErrors = {
    * ConflictError
    */
   409: ConflictError
+  /**
+   * TooManyRequestsError
+   */
+  429: TooManyRequestsError
 }
 
 export type V2SessionPromptError = V2SessionPromptErrors[keyof V2SessionPromptErrors]
@@ -11835,6 +11976,47 @@ export type V2SessionContextResponses = {
 }
 
 export type V2SessionContextResponse = V2SessionContextResponses[keyof V2SessionContextResponses]
+
+export type V2SessionContextUsageData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: never
+  url: "/api/session/{sessionID}/context-usage"
+}
+
+export type V2SessionContextUsageErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * SessionNotFoundError
+   */
+  404: SessionNotFoundError
+  /**
+   * UnknownError
+   */
+  500: UnknownError1
+}
+
+export type V2SessionContextUsageError = V2SessionContextUsageErrors[keyof V2SessionContextUsageErrors]
+
+export type V2SessionContextUsageResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: SessionContextUsage
+  }
+}
+
+export type V2SessionContextUsageResponse = V2SessionContextUsageResponses[keyof V2SessionContextUsageResponses]
 
 export type V2SessionHistoryData = {
   body?: never
@@ -12515,6 +12697,128 @@ export type V2CredentialUpdateResponses = {
 
 export type V2CredentialUpdateResponse = V2CredentialUpdateResponses[keyof V2CredentialUpdateResponses]
 
+export type V2DevicePairData = {
+  body: {
+    name?: string
+  }
+  path?: never
+  query?: never
+  url: "/api/device/pair"
+}
+
+export type V2DevicePairErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2DevicePairError = V2DevicePairErrors[keyof V2DevicePairErrors]
+
+export type V2DevicePairResponses = {
+  /**
+   * DevicePairResponse
+   */
+  200: DevicePairResponse
+}
+
+export type V2DevicePairResponse = V2DevicePairResponses[keyof V2DevicePairResponses]
+
+export type V2DeviceClaimData = {
+  body: {
+    code: string
+  }
+  path?: never
+  query?: never
+  url: "/api/device/claim"
+}
+
+export type V2DeviceClaimErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2DeviceClaimError = V2DeviceClaimErrors[keyof V2DeviceClaimErrors]
+
+export type V2DeviceClaimResponses = {
+  /**
+   * DeviceClaimResponse
+   */
+  200: DeviceClaimResponse
+}
+
+export type V2DeviceClaimResponse = V2DeviceClaimResponses[keyof V2DeviceClaimResponses]
+
+export type V2DeviceListData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/device"
+}
+
+export type V2DeviceListErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2DeviceListError = V2DeviceListErrors[keyof V2DeviceListErrors]
+
+export type V2DeviceListResponses = {
+  /**
+   * DeviceListResponse
+   */
+  200: DeviceListResponse
+}
+
+export type V2DeviceListResponse = V2DeviceListResponses[keyof V2DeviceListResponses]
+
+export type V2DeviceRevokeData = {
+  body?: never
+  path: {
+    deviceID: string
+  }
+  query?: never
+  url: "/api/device/{deviceID}"
+}
+
+export type V2DeviceRevokeErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2DeviceRevokeError = V2DeviceRevokeErrors[keyof V2DeviceRevokeErrors]
+
+export type V2DeviceRevokeResponses = {
+  /**
+   * <No Content>
+   */
+  204: void
+}
+
+export type V2DeviceRevokeResponse = V2DeviceRevokeResponses[keyof V2DeviceRevokeResponses]
+
 export type V2PermissionRequestListData = {
   body?: never
   path?: never
@@ -12781,6 +13085,184 @@ export type V2SessionPermissionReplyResponses = {
 
 export type V2SessionPermissionReplyResponse =
   V2SessionPermissionReplyResponses[keyof V2SessionPermissionReplyResponses]
+
+export type V2ApprovalListData = {
+  body?: never
+  path?: never
+  query?: {
+    sessionID?: string
+    status?: ApprovalStatus
+  }
+  url: "/api/approval"
+}
+
+export type V2ApprovalListErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2ApprovalListError = V2ApprovalListErrors[keyof V2ApprovalListErrors]
+
+export type V2ApprovalListResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: Array<ApprovalInfo>
+  }
+}
+
+export type V2ApprovalListResponse = V2ApprovalListResponses[keyof V2ApprovalListResponses]
+
+export type V2ApprovalRequestData = {
+  body: {
+    sessionID?: string
+    action: string
+    resources: Array<string>
+    timeout_ms?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  path?: never
+  query?: never
+  url: "/api/approval"
+}
+
+export type V2ApprovalRequestErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2ApprovalRequestError = V2ApprovalRequestErrors[keyof V2ApprovalRequestErrors]
+
+export type V2ApprovalRequestResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: ApprovalInfo
+  }
+}
+
+export type V2ApprovalRequestResponse = V2ApprovalRequestResponses[keyof V2ApprovalRequestResponses]
+
+export type V2ApprovalJobsListData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/approval/jobs"
+}
+
+export type V2ApprovalJobsListErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2ApprovalJobsListError = V2ApprovalJobsListErrors[keyof V2ApprovalJobsListErrors]
+
+export type V2ApprovalJobsListResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: Array<ApprovalJobInfo>
+  }
+}
+
+export type V2ApprovalJobsListResponse = V2ApprovalJobsListResponses[keyof V2ApprovalJobsListResponses]
+
+export type V2ApprovalGetData = {
+  body?: never
+  path: {
+    requestID: string
+  }
+  query?: never
+  url: "/api/approval/{requestID}"
+}
+
+export type V2ApprovalGetErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * PermissionNotFoundError
+   */
+  404: PermissionNotFoundError
+}
+
+export type V2ApprovalGetError = V2ApprovalGetErrors[keyof V2ApprovalGetErrors]
+
+export type V2ApprovalGetResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: ApprovalInfo
+  }
+}
+
+export type V2ApprovalGetResponse = V2ApprovalGetResponses[keyof V2ApprovalGetResponses]
+
+export type V2ApprovalDecideData = {
+  body: {
+    decision: ApprovalDecision
+    message?: string
+    actor?: string
+    deviceID?: string
+  }
+  path: {
+    requestID: string
+  }
+  query?: never
+  url: "/api/approval/{requestID}/decide"
+}
+
+export type V2ApprovalDecideErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * PermissionNotFoundError
+   */
+  404: PermissionNotFoundError
+}
+
+export type V2ApprovalDecideError = V2ApprovalDecideErrors[keyof V2ApprovalDecideErrors]
+
+export type V2ApprovalDecideResponses = {
+  /**
+   * <No Content>
+   */
+  204: void
+}
+
+export type V2ApprovalDecideResponse = V2ApprovalDecideResponses[keyof V2ApprovalDecideResponses]
 
 export type V2FsReadData = {
   body?: never
@@ -13587,6 +14069,314 @@ export type V2ProjectCopyRefreshResponses = {
 }
 
 export type V2ProjectCopyRefreshResponse = V2ProjectCopyRefreshResponses[keyof V2ProjectCopyRefreshResponses]
+
+export type V2AsyncRunListData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/async-run"
+}
+
+export type V2AsyncRunListErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2AsyncRunListError = V2AsyncRunListErrors[keyof V2AsyncRunListErrors]
+
+export type V2AsyncRunListResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: Array<AsyncRunInfo>
+  }
+}
+
+export type V2AsyncRunListResponse = V2AsyncRunListResponses[keyof V2AsyncRunListResponses]
+
+export type V2AsyncRunCreateData = {
+  body: {
+    tasks: Array<string>
+    review?: boolean
+  }
+  path?: never
+  query?: never
+  url: "/api/async-run"
+}
+
+export type V2AsyncRunCreateErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * UnknownError
+   */
+  500: UnknownError1
+}
+
+export type V2AsyncRunCreateError = V2AsyncRunCreateErrors[keyof V2AsyncRunCreateErrors]
+
+export type V2AsyncRunCreateResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: AsyncRunInfo
+  }
+}
+
+export type V2AsyncRunCreateResponse = V2AsyncRunCreateResponses[keyof V2AsyncRunCreateResponses]
+
+export type V2AsyncRunGetData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/api/async-run/{runID}"
+}
+
+export type V2AsyncRunGetErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * RunNotFoundError
+   */
+  404: RunNotFoundError
+}
+
+export type V2AsyncRunGetError = V2AsyncRunGetErrors[keyof V2AsyncRunGetErrors]
+
+export type V2AsyncRunGetResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: AsyncRunInfo
+  }
+}
+
+export type V2AsyncRunGetResponse = V2AsyncRunGetResponses[keyof V2AsyncRunGetResponses]
+
+export type V2AsyncRunReplayData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/api/async-run/{runID}/replay"
+}
+
+export type V2AsyncRunReplayErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * RunNotFoundError
+   */
+  404: RunNotFoundError
+}
+
+export type V2AsyncRunReplayError = V2AsyncRunReplayErrors[keyof V2AsyncRunReplayErrors]
+
+export type V2AsyncRunReplayResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: Array<string>
+  }
+}
+
+export type V2AsyncRunReplayResponse = V2AsyncRunReplayResponses[keyof V2AsyncRunReplayResponses]
+
+export type V2SchedulesListData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/schedules"
+}
+
+export type V2SchedulesListErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2SchedulesListError = V2SchedulesListErrors[keyof V2SchedulesListErrors]
+
+export type V2SchedulesListResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: Array<ScheduleInfo>
+  }
+}
+
+export type V2SchedulesListResponse = V2SchedulesListResponses[keyof V2SchedulesListResponses]
+
+export type V2SchedulesCreateData = {
+  body: {
+    sessionID?: string
+    prompt: string
+    spec: string
+  }
+  path?: never
+  query?: never
+  url: "/api/schedules"
+}
+
+export type V2SchedulesCreateErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2SchedulesCreateError = V2SchedulesCreateErrors[keyof V2SchedulesCreateErrors]
+
+export type V2SchedulesCreateResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: ScheduleInfo
+  }
+}
+
+export type V2SchedulesCreateResponse = V2SchedulesCreateResponses[keyof V2SchedulesCreateResponses]
+
+export type V2SchedulesDeleteData = {
+  body?: never
+  path: {
+    scheduleID: string
+  }
+  query?: never
+  url: "/api/schedules/{scheduleID}"
+}
+
+export type V2SchedulesDeleteErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2SchedulesDeleteError = V2SchedulesDeleteErrors[keyof V2SchedulesDeleteErrors]
+
+export type V2SchedulesDeleteResponses = {
+  /**
+   * <No Content>
+   */
+  204: void
+}
+
+export type V2SchedulesDeleteResponse = V2SchedulesDeleteResponses[keyof V2SchedulesDeleteResponses]
+
+export type V2SpendSessionData = {
+  body?: never
+  path: {
+    id: string
+  }
+  query?: never
+  url: "/api/session/{id}/spend"
+}
+
+export type V2SpendSessionErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * SessionNotFoundError
+   */
+  404: SessionNotFoundError
+}
+
+export type V2SpendSessionError = V2SpendSessionErrors[keyof V2SpendSessionErrors]
+
+export type V2SpendSessionResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: SpendSummary
+  }
+}
+
+export type V2SpendSessionResponse = V2SpendSessionResponses[keyof V2SpendSessionResponses]
+
+export type V2SpendSummaryData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/spend/summary"
+}
+
+export type V2SpendSummaryErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2SpendSummaryError = V2SpendSummaryErrors[keyof V2SpendSummaryErrors]
+
+export type V2SpendSummaryResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: SpendSummary
+  }
+}
+
+export type V2SpendSummaryResponse = V2SpendSummaryResponses[keyof V2SpendSummaryResponses]
 
 export type PtyConnectData = {
   body?: never

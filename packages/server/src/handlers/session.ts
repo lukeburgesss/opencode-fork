@@ -15,6 +15,7 @@ import {
   UnknownError,
 } from "@opencode-ai/protocol/errors"
 import { AbsolutePath } from "@opencode-ai/core/schema"
+import { checkPromptAllowed } from "./spend"
 
 const DefaultSessionsLimit = 50
 const DefaultSessionHistoryLimit = 50
@@ -167,6 +168,9 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
       .handle(
         "session.prompt",
         Effect.fn(function* (ctx) {
+          // Spend guardrails run before durable admission: kill-switch refuses
+          // with 429, a blown daily cap with 402.
+          yield* checkPromptAllowed()
           return {
             data: yield* session
               .prompt({

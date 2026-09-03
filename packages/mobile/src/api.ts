@@ -69,14 +69,74 @@ export async function replyPermission(
   config: RemoteConfig,
   sessionID: string,
   requestID: string,
-  reply: "once" | "reject",
+  reply: "once" | "always" | "reject",
+  message?: string,
 ) {
   const response = await fetch(url(config, `/api/session/${sessionID}/permission/${requestID}/reply`), {
     method: "POST",
     headers: headers(config),
-    body: JSON.stringify({ reply }),
+    body: JSON.stringify({ reply, ...(message ? { message } : {}) }),
   })
   if (!response.ok) throw new Error(`Permission reply failed: ${response.status}`)
+}
+
+export type ApprovalDecision = "once" | "always" | "deny"
+
+export type ApprovalItem = {
+  id: string
+  sessionID?: string
+  action: string
+  resources: string[]
+  created_at: number
+  expires_at: number
+  timeout_ms: number
+  status: "pending" | "decided" | "expired"
+  decision?: ApprovalDecision
+}
+
+export type BackgroundJobItem = {
+  id: string
+  type: string
+  title?: string
+  status: "running" | "completed" | "error" | "cancelled"
+  started_at: number
+  completed_at?: number
+  output?: string
+  error?: string
+}
+
+export function approvalRemaining(expires_at: number, now = Date.now()) {
+  const remaining = expires_at - now
+  if (remaining <= 0) return "expired"
+  const total = Math.floor(remaining / 1000)
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")} left`
+}
+
+export async function listApprovals(config: RemoteConfig, status?: ApprovalItem["status"]) {
+  const query = status ? `?status=${encodeURIComponent(status)}` : ""
+  const response = await fetch(url(config, `/api/approval${query}`), { headers: headers(config) })
+  if (!response.ok) throw new Error(`List approvals failed: ${response.status}`)
+  return (await response.json()) as { data: ApprovalItem[] }
+}
+
+export async function decideApproval(
+  config: RemoteConfig,
+  requestID: string,
+  decision: ApprovalDecision,
+  message?: string,
+) {
+  const response = await fetch(url(config, `/api/approval/${requestID}/decide`), {
+    method: "POST",
+    headers: headers(config),
+    body: JSON.stringify({ decision, ...(message ? { message } : {}) }),
+  })
+  if (!response.ok) throw new Error(`Approval decide failed: ${response.status}`)
+}
+
+export async function listBackgroundJobs(config: RemoteConfig) {
+  const response = await fetch(url(config, "/api/approval/jobs"), { headers: headers(config) })
+  if (!response.ok) throw new Error(`List background jobs failed: ${response.status}`)
+  return (await response.json()) as { data: BackgroundJobItem[] }
 }
 
 export function sessionEventUrl(config: RemoteConfig, sessionID: string) {

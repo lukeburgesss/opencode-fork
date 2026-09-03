@@ -3,6 +3,7 @@ import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { httpClient } from "@opencode-ai/core/effect/app-node-platform"
 import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
 import { EventV2 } from "@opencode-ai/core/event"
+import { ApprovalQueue } from "@opencode-ai/core/approvals/queue"
 import { Credential } from "@opencode-ai/core/credential"
 import { PermissionSaved } from "@opencode-ai/core/permission/saved"
 import { PtyTicket } from "@opencode-ai/core/pty/ticket"
@@ -34,6 +35,7 @@ const applicationServices = LayerNode.group([
   PtyTicket.node,
   Credential.node,
   DeviceStore.node,
+  ApprovalQueue.node,
   PtyEnvironment.node,
   LocationServiceMap.node,
 ])

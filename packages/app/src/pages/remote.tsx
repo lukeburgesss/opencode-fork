@@ -1,5 +1,7 @@
 import { createOpencodeClient } from "@opencode-ai/sdk/v2/client"
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js"
+import { ApprovalsDashboard, type ApprovalJobRow, type ApprovalRow } from "../components/approvals-dashboard"
+import { SpendDashboard } from "../components/spend-dashboard"
 
 // Scaffold-only copy: move to i18n `remote.*` keys (plus every locale) before production use.
 const STORE_TOKEN = "opencode.remote.token"
@@ -15,6 +17,9 @@ export default function RemotePage() {
   const [prompt, setPrompt] = createSignal("")
   const [events, setEvents] = createSignal<string[]>([])
   const [permissions, setPermissions] = createSignal<Array<{ id: string }>>([])
+  const [approvals, setApprovals] = createSignal<ApprovalRow[]>([])
+  const [jobs, setJobs] = createSignal<ApprovalJobRow[]>([])
+  const [approvalsLoading, setApprovalsLoading] = createSignal(false)
   const [error, setError] = createSignal<string | undefined>(undefined)
 
   const client = createMemo(() =>
@@ -62,12 +67,49 @@ export default function RemotePage() {
       .catch(() => setPermissions([]))
   })
 
+  createEffect(() => {
+    void baseUrl()
+    void token()
+    void events().length
+    void refreshApprovals()
+  })
+
   const send = async () => {
     const id = activeID()
     const text = prompt().trim()
     if (!id || !text) return
     await client().v2.session.prompt({ sessionID: id, prompt: { text } })
     setPrompt("")
+  }
+
+  const authHeaders = () => (token() ? { Authorization: `Bearer ${token()}` } : undefined)
+
+  const refreshApprovals = async () => {
+    setApprovalsLoading(true)
+    try {
+      const base = baseUrl().replace(/\/$/, "")
+      const [queue, background] = await Promise.all([
+        fetch(`${base}/api/approval?status=pending`, { headers: authHeaders() }),
+        fetch(`${base}/api/approval/jobs`, { headers: authHeaders() }),
+      ])
+      if (queue.ok) setApprovals((((await queue.json()) as { data: ApprovalRow[] }).data ?? []) as ApprovalRow[])
+      if (background.ok) setJobs((((await background.json()) as { data: ApprovalJobRow[] }).data ?? []) as ApprovalJobRow[])
+    } catch {
+      setApprovals([])
+      setJobs([])
+    } finally {
+      setApprovalsLoading(false)
+    }
+  }
+
+  const decideApproval = async (requestID: string, decision: "once" | "always" | "deny") => {
+    const base = baseUrl().replace(/\/$/, "")
+    await fetch(`${base}/api/approval/${requestID}/decide`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ decision }),
+    })
+    await refreshApprovals()
   }
 
   return (
@@ -102,6 +144,7 @@ export default function RemotePage() {
       <button type="button" onClick={() => void refresh()}>
         Refresh sessions
       </button>
+      <SpendDashboard baseUrl={baseUrl()} token={token()} />
       <ul>
         <For each={sessions()}>
           {(session) => (
@@ -139,6 +182,14 @@ export default function RemotePage() {
                     <button
                       type="button"
                       onClick={() =>
+                        void client().v2.session.permission.reply({ sessionID: id(), requestID: request.id, reply: "always" })
+                      }
+                    >
+                      Always
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
                         void client().v2.session.permission.reply({ sessionID: id(), requestID: request.id, reply: "reject" })
                       }
                     >
@@ -148,6 +199,12 @@ export default function RemotePage() {
                 )}
               </For>
             </ul>
+            <ApprovalsDashboard
+              approvals={approvals()}
+              jobs={jobs()}
+              loading={approvalsLoading()}
+              onDecide={(requestID, decision) => void decideApproval(requestID, decision)}
+            />
             <ol>
               <For each={events()}>{(event) => <li>{event}</li>}</For>
             </ol>

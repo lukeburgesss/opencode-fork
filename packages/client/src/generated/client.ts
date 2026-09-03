@@ -29,6 +29,8 @@ import type {
   SessionsCommitOutput,
   SessionsContextInput,
   SessionsContextOutput,
+  SessionsContextUsageInput,
+  SessionsContextUsageOutput,
   SessionsHistoryInput,
   SessionsHistoryOutput,
   SessionsEventsInput,
@@ -63,6 +65,13 @@ import type {
   CredentialsUpdateOutput,
   CredentialsRemoveInput,
   CredentialsRemoveOutput,
+  ServerDevicePairInput,
+  ServerDevicePairOutput,
+  ServerDeviceClaimInput,
+  ServerDeviceClaimOutput,
+  ServerDeviceListOutput,
+  ServerDeviceRevokeInput,
+  ServerDeviceRevokeOutput,
   PermissionsListRequestsInput,
   PermissionsListRequestsOutput,
   PermissionsListSavedInput,
@@ -77,6 +86,15 @@ import type {
   PermissionsGetOutput,
   PermissionsReplyInput,
   PermissionsReplyOutput,
+  PermissionsRequestApprovalInput,
+  PermissionsRequestApprovalOutput,
+  PermissionsListApprovalsInput,
+  PermissionsListApprovalsOutput,
+  PermissionsListApprovalJobsOutput,
+  PermissionsGetApprovalInput,
+  PermissionsGetApprovalOutput,
+  PermissionsDecideApprovalInput,
+  PermissionsDecideApprovalOutput,
   FilesListInput,
   FilesListOutput,
   FilesFindInput,
@@ -112,6 +130,21 @@ import type {
   ProjectCopiesRemoveOutput,
   ProjectCopiesRefreshInput,
   ProjectCopiesRefreshOutput,
+  ServerAsyncRunCreateInput,
+  ServerAsyncRunCreateOutput,
+  ServerAsyncRunListOutput,
+  ServerAsyncRunGetInput,
+  ServerAsyncRunGetOutput,
+  ServerAsyncRunReplayInput,
+  ServerAsyncRunReplayOutput,
+  ServerSchedulesCreateInput,
+  ServerSchedulesCreateOutput,
+  ServerSchedulesListOutput,
+  ServerSchedulesDeleteInput,
+  ServerSchedulesDeleteOutput,
+  ServerSpendSessionInput,
+  ServerSpendSessionOutput,
+  ServerSpendSummaryOutput,
 } from "./types"
 import { ClientError } from "./client-error"
 
@@ -374,7 +407,7 @@ export function make(options: ClientOptions) {
             path: `/api/session/${encodeURIComponent(input.sessionID)}/prompt`,
             body: { id: input["id"], prompt: input["prompt"], delivery: input["delivery"], resume: input["resume"] },
             successStatus: 200,
-            declaredStatuses: [409, 404, 400, 401],
+            declaredStatuses: [409, 404, 402, 429, 400, 401],
             empty: false,
           },
           requestOptions,
@@ -440,6 +473,17 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/session/${encodeURIComponent(input.sessionID)}/context`,
+            successStatus: 200,
+            declaredStatuses: [404, 500, 400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      contextUsage: (input: SessionsContextUsageInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: SessionsContextUsageOutput }>(
+          {
+            method: "GET",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}/context-usage`,
             successStatus: 200,
             declaredStatuses: [404, 500, 400, 401],
             empty: false,
@@ -663,6 +707,48 @@ export function make(options: ClientOptions) {
           requestOptions,
         ),
     },
+    "server.device": {
+      pair: (input?: ServerDevicePairInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: ServerDevicePairOutput }>(
+          {
+            method: "POST",
+            path: `/api/device/pair`,
+            body: { name: input?.["name"] },
+            successStatus: 200,
+            declaredStatuses: [401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      claim: (input: ServerDeviceClaimInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: ServerDeviceClaimOutput }>(
+          {
+            method: "POST",
+            path: `/api/device/claim`,
+            body: { code: input["code"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      list: (requestOptions?: RequestOptions) =>
+        request<{ readonly data: ServerDeviceListOutput }>(
+          { method: "GET", path: `/api/device`, successStatus: 200, declaredStatuses: [401, 400], empty: false },
+          requestOptions,
+        ).then((value) => value.data),
+      revoke: (input: ServerDeviceRevokeInput, requestOptions?: RequestOptions) =>
+        request<ServerDeviceRevokeOutput>(
+          {
+            method: "DELETE",
+            path: `/api/device/${encodeURIComponent(input.deviceID)}`,
+            successStatus: 204,
+            declaredStatuses: [400, 401],
+            empty: true,
+          },
+          requestOptions,
+        ),
+    },
     permissions: {
       listRequests: (input?: PermissionsListRequestsInput, requestOptions?: RequestOptions) =>
         request<PermissionsListRequestsOutput>(
@@ -749,6 +835,68 @@ export function make(options: ClientOptions) {
             body: { reply: input["reply"], message: input["message"] },
             successStatus: 204,
             declaredStatuses: [404, 400, 401],
+            empty: true,
+          },
+          requestOptions,
+        ),
+      requestApproval: (input: PermissionsRequestApprovalInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: PermissionsRequestApprovalOutput }>(
+          {
+            method: "POST",
+            path: `/api/approval`,
+            body: {
+              sessionID: input["sessionID"],
+              action: input["action"],
+              resources: input["resources"],
+              timeout_ms: input["timeout_ms"],
+            },
+            successStatus: 200,
+            declaredStatuses: [401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      listApprovals: (input?: PermissionsListApprovalsInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: PermissionsListApprovalsOutput }>(
+          {
+            method: "GET",
+            path: `/api/approval`,
+            query: { sessionID: input?.["sessionID"], status: input?.["status"] },
+            successStatus: 200,
+            declaredStatuses: [401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      listApprovalJobs: (requestOptions?: RequestOptions) =>
+        request<{ readonly data: PermissionsListApprovalJobsOutput }>(
+          { method: "GET", path: `/api/approval/jobs`, successStatus: 200, declaredStatuses: [401, 400], empty: false },
+          requestOptions,
+        ).then((value) => value.data),
+      getApproval: (input: PermissionsGetApprovalInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: PermissionsGetApprovalOutput }>(
+          {
+            method: "GET",
+            path: `/api/approval/${encodeURIComponent(input.requestID)}`,
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      decideApproval: (input: PermissionsDecideApprovalInput, requestOptions?: RequestOptions) =>
+        request<PermissionsDecideApprovalOutput>(
+          {
+            method: "POST",
+            path: `/api/approval/${encodeURIComponent(input.requestID)}/decide`,
+            body: {
+              decision: input["decision"],
+              message: input["message"],
+              actor: input["actor"],
+              deviceID: input["deviceID"],
+            },
+            successStatus: 204,
+            declaredStatuses: [404, 401, 400],
             empty: true,
           },
           requestOptions,
@@ -986,6 +1134,95 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
+    },
+    "server.asyncRun": {
+      create: (input: ServerAsyncRunCreateInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: ServerAsyncRunCreateOutput }>(
+          {
+            method: "POST",
+            path: `/api/async-run`,
+            body: { tasks: input["tasks"], review: input["review"] },
+            successStatus: 200,
+            declaredStatuses: [500, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      list: (requestOptions?: RequestOptions) =>
+        request<{ readonly data: ServerAsyncRunListOutput }>(
+          { method: "GET", path: `/api/async-run`, successStatus: 200, declaredStatuses: [401, 400], empty: false },
+          requestOptions,
+        ).then((value) => value.data),
+      get: (input: ServerAsyncRunGetInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: ServerAsyncRunGetOutput }>(
+          {
+            method: "GET",
+            path: `/api/async-run/${encodeURIComponent(input.runID)}`,
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      replay: (input: ServerAsyncRunReplayInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: ServerAsyncRunReplayOutput }>(
+          {
+            method: "GET",
+            path: `/api/async-run/${encodeURIComponent(input.runID)}/replay`,
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+    },
+    "server.schedules": {
+      create: (input: ServerSchedulesCreateInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: ServerSchedulesCreateOutput }>(
+          {
+            method: "POST",
+            path: `/api/schedules`,
+            body: { sessionID: input["sessionID"], prompt: input["prompt"], spec: input["spec"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      list: (requestOptions?: RequestOptions) =>
+        request<{ readonly data: ServerSchedulesListOutput }>(
+          { method: "GET", path: `/api/schedules`, successStatus: 200, declaredStatuses: [401, 400], empty: false },
+          requestOptions,
+        ).then((value) => value.data),
+      delete: (input: ServerSchedulesDeleteInput, requestOptions?: RequestOptions) =>
+        request<ServerSchedulesDeleteOutput>(
+          {
+            method: "DELETE",
+            path: `/api/schedules/${encodeURIComponent(input.scheduleID)}`,
+            successStatus: 204,
+            declaredStatuses: [400, 401],
+            empty: true,
+          },
+          requestOptions,
+        ),
+    },
+    "server.spend": {
+      session: (input: ServerSpendSessionInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: ServerSpendSessionOutput }>(
+          {
+            method: "GET",
+            path: `/api/session/${encodeURIComponent(input.id)}/spend`,
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      summary: (requestOptions?: RequestOptions) =>
+        request<{ readonly data: ServerSpendSummaryOutput }>(
+          { method: "GET", path: `/api/spend/summary`, successStatus: 200, declaredStatuses: [401, 400], empty: false },
+          requestOptions,
+        ).then((value) => value.data),
     },
   }
 }

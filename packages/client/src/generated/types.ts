@@ -41,6 +41,19 @@ export type ConflictError = {
 export const isConflictError = (value: unknown): value is ConflictError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ConflictError"
 
+export type PaymentRequiredError = {
+  readonly _tag: "PaymentRequiredError"
+  readonly message: string
+  readonly costUSD?: number | undefined
+  readonly capUSD?: number | undefined
+}
+export const isPaymentRequiredError = (value: unknown): value is PaymentRequiredError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "PaymentRequiredError"
+
+export type TooManyRequestsError = { readonly _tag: "TooManyRequestsError"; readonly message: string }
+export const isTooManyRequestsError = (value: unknown): value is TooManyRequestsError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "TooManyRequestsError"
+
 export type ServiceUnavailableError = {
   readonly _tag: "ServiceUnavailableError"
   readonly message: string
@@ -100,6 +113,10 @@ export type ProjectCopyError = {
 }
 export const isProjectCopyError = (value: unknown): value is ProjectCopyError =>
   typeof value === "object" && value !== null && "name" in value && value["name"] === "ProjectCopyError"
+
+export type RunNotFoundError = { readonly _tag: "RunNotFoundError"; readonly runID: string; readonly message: string }
+export const isRunNotFoundError = (value: unknown): value is RunNotFoundError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "RunNotFoundError"
 
 export type HealthGetOutput = { readonly healthy: true }
 
@@ -674,6 +691,21 @@ export type SessionsContextOutput = {
         readonly time: { readonly created: number }
       }
   >
+}["data"]
+
+export type SessionsContextUsageInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+
+export type SessionsContextUsageOutput = {
+  readonly data: {
+    readonly used: number
+    readonly usable: number
+    readonly pct: number
+    readonly cacheRead: number
+    readonly cacheWrite: number
+    readonly preserveBudget: number
+    readonly etaTurns: number | null
+    readonly model: { readonly providerID: string; readonly modelID: string; readonly contextLimit: number }
+  }
 }["data"]
 
 export type SessionsHistoryInput = {
@@ -2288,6 +2320,29 @@ export type CredentialsRemoveInput = {
 
 export type CredentialsRemoveOutput = void
 
+export type ServerDevicePairInput = { readonly name?: { readonly name?: string | undefined }["name"] }
+
+export type ServerDevicePairOutput = { readonly data: { readonly code: string; readonly expires_at: number } }["data"]
+
+export type ServerDeviceClaimInput = { readonly code: { readonly code: string }["code"] }
+
+export type ServerDeviceClaimOutput = {
+  readonly data: { readonly token: string; readonly deviceID: string; readonly name: string }
+}["data"]
+
+export type ServerDeviceListOutput = {
+  readonly data: ReadonlyArray<{
+    readonly id: string
+    readonly name: string
+    readonly created_at: number
+    readonly last_used_at?: number | undefined
+  }>
+}["data"]
+
+export type ServerDeviceRevokeInput = { readonly deviceID: { readonly deviceID: string }["deviceID"] }
+
+export type ServerDeviceRevokeOutput = void
+
 export type PermissionsListRequestsInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
@@ -2438,6 +2493,161 @@ export type PermissionsReplyInput = {
 }
 
 export type PermissionsReplyOutput = void
+
+export type PermissionsRequestApprovalInput = {
+  readonly sessionID?: {
+    readonly sessionID?: string | undefined
+    readonly action: string
+    readonly resources: ReadonlyArray<string>
+    readonly timeout_ms?: number | undefined
+  }["sessionID"]
+  readonly action: {
+    readonly sessionID?: string | undefined
+    readonly action: string
+    readonly resources: ReadonlyArray<string>
+    readonly timeout_ms?: number | undefined
+  }["action"]
+  readonly resources: {
+    readonly sessionID?: string | undefined
+    readonly action: string
+    readonly resources: ReadonlyArray<string>
+    readonly timeout_ms?: number | undefined
+  }["resources"]
+  readonly timeout_ms?: {
+    readonly sessionID?: string | undefined
+    readonly action: string
+    readonly resources: ReadonlyArray<string>
+    readonly timeout_ms?: number | undefined
+  }["timeout_ms"]
+}
+
+export type PermissionsRequestApprovalOutput = {
+  readonly data: {
+    readonly id: string
+    readonly sessionID?: string | undefined
+    readonly action: string
+    readonly resources: ReadonlyArray<string>
+    readonly created_at: number
+    readonly expires_at: number
+    readonly timeout_ms: number
+    readonly status: "pending" | "decided" | "expired"
+    readonly decision?: ("once" | "always" | "deny") | undefined
+    readonly decided_at?: number | undefined
+    readonly decided_by?: string | undefined
+    readonly deviceID?: string | undefined
+    readonly audit: ReadonlyArray<{
+      readonly decision: "once" | "always" | "deny"
+      readonly actor: string
+      readonly deviceID?: string | undefined
+      readonly message?: string | undefined
+      readonly at: number
+    }>
+  }
+}["data"]
+
+export type PermissionsListApprovalsInput = {
+  readonly sessionID?: {
+    readonly sessionID?: string | undefined
+    readonly status?: ("pending" | "decided" | "expired") | undefined
+  }["sessionID"]
+  readonly status?: {
+    readonly sessionID?: string | undefined
+    readonly status?: ("pending" | "decided" | "expired") | undefined
+  }["status"]
+}
+
+export type PermissionsListApprovalsOutput = {
+  readonly data: ReadonlyArray<{
+    readonly id: string
+    readonly sessionID?: string | undefined
+    readonly action: string
+    readonly resources: ReadonlyArray<string>
+    readonly created_at: number
+    readonly expires_at: number
+    readonly timeout_ms: number
+    readonly status: "pending" | "decided" | "expired"
+    readonly decision?: ("once" | "always" | "deny") | undefined
+    readonly decided_at?: number | undefined
+    readonly decided_by?: string | undefined
+    readonly deviceID?: string | undefined
+    readonly audit: ReadonlyArray<{
+      readonly decision: "once" | "always" | "deny"
+      readonly actor: string
+      readonly deviceID?: string | undefined
+      readonly message?: string | undefined
+      readonly at: number
+    }>
+  }>
+}["data"]
+
+export type PermissionsListApprovalJobsOutput = {
+  readonly data: ReadonlyArray<{
+    readonly id: string
+    readonly type: string
+    readonly title?: string | undefined
+    readonly status: "running" | "completed" | "error" | "cancelled"
+    readonly started_at: number
+    readonly completed_at?: number | undefined
+    readonly output?: string | undefined
+    readonly error?: string | undefined
+  }>
+}["data"]
+
+export type PermissionsGetApprovalInput = { readonly requestID: { readonly requestID: string }["requestID"] }
+
+export type PermissionsGetApprovalOutput = {
+  readonly data: {
+    readonly id: string
+    readonly sessionID?: string | undefined
+    readonly action: string
+    readonly resources: ReadonlyArray<string>
+    readonly created_at: number
+    readonly expires_at: number
+    readonly timeout_ms: number
+    readonly status: "pending" | "decided" | "expired"
+    readonly decision?: ("once" | "always" | "deny") | undefined
+    readonly decided_at?: number | undefined
+    readonly decided_by?: string | undefined
+    readonly deviceID?: string | undefined
+    readonly audit: ReadonlyArray<{
+      readonly decision: "once" | "always" | "deny"
+      readonly actor: string
+      readonly deviceID?: string | undefined
+      readonly message?: string | undefined
+      readonly at: number
+    }>
+  }
+}["data"]
+
+export type PermissionsDecideApprovalInput = {
+  readonly requestID: { readonly requestID: string }["requestID"]
+  readonly decision: {
+    readonly decision: "once" | "always" | "deny"
+    readonly message?: string | undefined
+    readonly actor?: string | undefined
+    readonly deviceID?: string | undefined
+  }["decision"]
+  readonly message?: {
+    readonly decision: "once" | "always" | "deny"
+    readonly message?: string | undefined
+    readonly actor?: string | undefined
+    readonly deviceID?: string | undefined
+  }["message"]
+  readonly actor?: {
+    readonly decision: "once" | "always" | "deny"
+    readonly message?: string | undefined
+    readonly actor?: string | undefined
+    readonly deviceID?: string | undefined
+  }["actor"]
+  readonly deviceID?: {
+    readonly decision: "once" | "always" | "deny"
+    readonly message?: string | undefined
+    readonly actor?: string | undefined
+    readonly deviceID?: string | undefined
+  }["deviceID"]
+}
+
+export type PermissionsDecideApprovalOutput = void
 
 export type FilesListInput = {
   readonly location?: {
@@ -2805,3 +3015,125 @@ export type ProjectCopiesRefreshInput = {
 }
 
 export type ProjectCopiesRefreshOutput = void
+
+export type ServerAsyncRunCreateInput = {
+  readonly tasks: { readonly tasks: ReadonlyArray<string>; readonly review?: boolean | undefined }["tasks"]
+  readonly review?: { readonly tasks: ReadonlyArray<string>; readonly review?: boolean | undefined }["review"]
+}
+
+export type ServerAsyncRunCreateOutput = {
+  readonly data: {
+    readonly id: string
+    readonly baseCommit: string
+    readonly directory: string
+    readonly tasks: ReadonlyArray<{
+      readonly title: string
+      readonly branch: string
+      readonly directory: string
+      readonly sessionID?: string | undefined
+      readonly status: "pending" | "running" | "done" | "failed"
+    }>
+    readonly review: boolean
+    readonly createdAt: number
+  }
+}["data"]
+
+export type ServerAsyncRunListOutput = {
+  readonly data: ReadonlyArray<{
+    readonly id: string
+    readonly baseCommit: string
+    readonly directory: string
+    readonly tasks: ReadonlyArray<{
+      readonly title: string
+      readonly branch: string
+      readonly directory: string
+      readonly sessionID?: string | undefined
+      readonly status: "pending" | "running" | "done" | "failed"
+    }>
+    readonly review: boolean
+    readonly createdAt: number
+  }>
+}["data"]
+
+export type ServerAsyncRunGetInput = { readonly runID: { readonly runID: string }["runID"] }
+
+export type ServerAsyncRunGetOutput = {
+  readonly data: {
+    readonly id: string
+    readonly baseCommit: string
+    readonly directory: string
+    readonly tasks: ReadonlyArray<{
+      readonly title: string
+      readonly branch: string
+      readonly directory: string
+      readonly sessionID?: string | undefined
+      readonly status: "pending" | "running" | "done" | "failed"
+    }>
+    readonly review: boolean
+    readonly createdAt: number
+  }
+}["data"]
+
+export type ServerAsyncRunReplayInput = { readonly runID: { readonly runID: string }["runID"] }
+
+export type ServerAsyncRunReplayOutput = { readonly data: ReadonlyArray<string> }["data"]
+
+export type ServerSchedulesCreateInput = {
+  readonly sessionID?: {
+    readonly sessionID?: string | undefined
+    readonly prompt: string
+    readonly spec: string
+  }["sessionID"]
+  readonly prompt: { readonly sessionID?: string | undefined; readonly prompt: string; readonly spec: string }["prompt"]
+  readonly spec: { readonly sessionID?: string | undefined; readonly prompt: string; readonly spec: string }["spec"]
+}
+
+export type ServerSchedulesCreateOutput = {
+  readonly data: {
+    readonly id: string
+    readonly sessionID?: string | undefined
+    readonly prompt: string
+    readonly spec: string
+    readonly nextRunAt: number
+    readonly enabled: boolean
+  }
+}["data"]
+
+export type ServerSchedulesListOutput = {
+  readonly data: ReadonlyArray<{
+    readonly id: string
+    readonly sessionID?: string | undefined
+    readonly prompt: string
+    readonly spec: string
+    readonly nextRunAt: number
+    readonly enabled: boolean
+  }>
+}["data"]
+
+export type ServerSchedulesDeleteInput = { readonly scheduleID: { readonly scheduleID: string }["scheduleID"] }
+
+export type ServerSchedulesDeleteOutput = void
+
+export type ServerSpendSessionInput = { readonly id: { readonly id: string }["id"] }
+
+export type ServerSpendSessionOutput = {
+  readonly data: {
+    readonly input: number
+    readonly output: number
+    readonly cacheRead: number
+    readonly cacheWrite: number
+    readonly totalTokens: number
+    readonly costUSD: number
+  }
+}["data"]
+
+export type ServerSpendSummaryOutput = {
+  readonly data: {
+    readonly input: number
+    readonly output: number
+    readonly cacheRead: number
+    readonly cacheWrite: number
+    readonly totalTokens: number
+    readonly costUSD: number
+  }
+}["data"]

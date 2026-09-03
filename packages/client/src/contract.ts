@@ -47,6 +47,11 @@ export const endpointNames = {
   "permission.request.list": "listRequests",
   "permission.saved.list": "listSaved",
   "permission.saved.remove": "removeSaved",
+  "approval.request": "requestApproval",
+  "approval.list": "listApprovals",
+  "approval.jobs.list": "listApprovalJobs",
+  "approval.get": "getApproval",
+  "approval.decide": "decideApproval",
   "question.request.list": "listRequests",
 } as const
 

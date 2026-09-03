@@ -14,6 +14,26 @@ export function DialogStatus() {
 
   const enabledFormatters = createMemo(() => sync.data.formatter.filter((f) => f.enabled))
 
+  const spend = createMemo(() => {
+    const start = new Date()
+    start.setHours(0, 0, 0, 0)
+    const today = sync.data.session.filter((item) => (item.time.updated ?? item.time.created) >= start.getTime())
+    const tokens = today.reduce(
+      (sum, item) =>
+        sum +
+        (item.tokens?.input ?? 0) +
+        (item.tokens?.output ?? 0) +
+        (item.tokens?.reasoning ?? 0) +
+        (item.tokens?.cache.read ?? 0) +
+        (item.tokens?.cache.write ?? 0),
+      0,
+    )
+    const cost = today.reduce((sum, item) => sum + (item.cost ?? 0), 0)
+    if (today.length === 0 && cost <= 0) return
+    const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" })
+    return `${money.format(cost)} · ${tokens.toLocaleString()} tokens · ${today.length} sessions`
+  })
+
   const plugins = createMemo(() => {
     const list = sync.data.config.plugin ?? []
     const result = list.map((item) => {
@@ -50,6 +70,14 @@ export function DialogStatus() {
           esc
         </text>
       </box>
+      <Show when={spend()}>
+        {(item) => (
+          <box>
+            <text fg={theme.text}>Spend today</text>
+            <text fg={theme.textMuted}>{item()}</text>
+          </box>
+        )}
+      </Show>
       <Show when={Object.keys(sync.data.mcp).length > 0} fallback={<text fg={theme.text}>No MCP Servers</text>}>
         <box>
           <text fg={theme.text}>{Object.keys(sync.data.mcp).length} MCP Servers</text>

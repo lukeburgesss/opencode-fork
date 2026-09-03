@@ -12,8 +12,10 @@ import {
   InvalidCursorError,
   InvalidRequestError,
   MessageNotFoundError,
+  PaymentRequiredError,
   ServiceUnavailableError,
   SessionNotFoundError,
+  TooManyRequestsError,
   UnknownError,
 } from "../errors"
 import { Agent } from "@opencode-ai/schema/agent"
@@ -227,7 +229,7 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
           resume: Schema.Boolean.pipe(Schema.optional),
         }),
         success: Schema.Struct({ data: SessionInput.Admitted }),
-        error: [ConflictError, SessionNotFoundError],
+        error: [ConflictError, SessionNotFoundError, PaymentRequiredError, TooManyRequestsError],
       })
         .middleware(sessionLocationMiddleware)
         .annotateMerge(

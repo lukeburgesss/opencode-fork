@@ -8,6 +8,8 @@ import type {
   AppAgentsResponses,
   AppLogErrors,
   AppLogResponses,
+  ApprovalDecision,
+  ApprovalStatus,
   AppSkillsErrors,
   AppSkillsResponses,
   Auth as Auth3,
@@ -265,12 +267,38 @@ import type {
   TuiSubmitPromptResponses,
   V2AgentListErrors,
   V2AgentListResponses,
+  V2ApprovalDecideErrors,
+  V2ApprovalDecideResponses,
+  V2ApprovalGetErrors,
+  V2ApprovalGetResponses,
+  V2ApprovalJobsListErrors,
+  V2ApprovalJobsListResponses,
+  V2ApprovalListErrors,
+  V2ApprovalListResponses,
+  V2ApprovalRequestErrors,
+  V2ApprovalRequestResponses,
+  V2AsyncRunCreateErrors,
+  V2AsyncRunCreateResponses,
+  V2AsyncRunGetErrors,
+  V2AsyncRunGetResponses,
+  V2AsyncRunListErrors,
+  V2AsyncRunListResponses,
+  V2AsyncRunReplayErrors,
+  V2AsyncRunReplayResponses,
   V2CommandListErrors,
   V2CommandListResponses,
   V2CredentialRemoveErrors,
   V2CredentialRemoveResponses,
   V2CredentialUpdateErrors,
   V2CredentialUpdateResponses,
+  V2DeviceClaimErrors,
+  V2DeviceClaimResponses,
+  V2DeviceListErrors,
+  V2DeviceListResponses,
+  V2DevicePairErrors,
+  V2DevicePairResponses,
+  V2DeviceRevokeErrors,
+  V2DeviceRevokeResponses,
   V2EventSubscribeErrors,
   V2EventSubscribeResponses,
   V2FsFindErrors,
@@ -333,12 +361,20 @@ import type {
   V2QuestionRequestListResponses,
   V2ReferenceListErrors,
   V2ReferenceListResponses,
+  V2SchedulesCreateErrors,
+  V2SchedulesCreateResponses,
+  V2SchedulesDeleteErrors,
+  V2SchedulesDeleteResponses,
+  V2SchedulesListErrors,
+  V2SchedulesListResponses,
   V2SessionActiveErrors,
   V2SessionActiveResponses,
   V2SessionCompactErrors,
   V2SessionCompactResponses,
   V2SessionContextErrors,
   V2SessionContextResponses,
+  V2SessionContextUsageErrors,
+  V2SessionContextUsageResponses,
   V2SessionCreateErrors,
   V2SessionCreateResponses,
   V2SessionEventsErrors,
@@ -385,6 +421,10 @@ import type {
   V2SessionWaitResponses,
   V2SkillListErrors,
   V2SkillListResponses,
+  V2SpendSessionErrors,
+  V2SpendSessionResponses,
+  V2SpendSummaryErrors,
+  V2SpendSummaryResponses,
   VcsApplyErrors,
   VcsApplyResponses,
   VcsDiffErrors,
@@ -5713,6 +5753,29 @@ export class Session3 extends HeyApiClient {
   }
 
   /**
+   * Get session context usage
+   *
+   * Retrieve live context and cache usage for a session, including usable window, preserve budget, and estimated turns until compaction.
+   */
+  public contextUsage<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "sessionID" }] }])
+    return (options?.client ?? this.client).get<
+      V2SessionContextUsageResponses,
+      V2SessionContextUsageErrors,
+      ThrowOnError
+    >({
+      url: "/api/session/{sessionID}/context-usage",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Get session history
    *
    * Read one finite page of public durable Session events after an exclusive aggregate sequence. Newly committed events may appear on later pages.
@@ -6316,6 +6379,87 @@ export class Credential extends HeyApiClient {
   }
 }
 
+export class Device extends HeyApiClient {
+  /**
+   * Pair mobile device
+   *
+   * Create a short pairing code (10 minute expiry) for a mobile remote. Requires the server password. Exchange the code via device.claim.
+   */
+  public pair<ThrowOnError extends boolean = false>(
+    parameters?: {
+      name?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "body", key: "name" }] }])
+    return (options?.client ?? this.client).post<V2DevicePairResponses, V2DevicePairErrors, ThrowOnError>({
+      url: "/api/device/pair",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Claim pairing code
+   *
+   * Exchange a pairing code for a long-lived device token. This endpoint is public; the code is single-use and expires after 10 minutes.
+   */
+  public claim<ThrowOnError extends boolean = false>(
+    parameters?: {
+      code?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "body", key: "code" }] }])
+    return (options?.client ?? this.client).post<V2DeviceClaimResponses, V2DeviceClaimErrors, ThrowOnError>({
+      url: "/api/device/claim",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * List paired devices
+   *
+   * List non-revoked paired devices.
+   */
+  public list<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<V2DeviceListResponses, V2DeviceListErrors, ThrowOnError>({
+      url: "/api/device",
+      ...options,
+    })
+  }
+
+  /**
+   * Revoke paired device
+   *
+   * Revoke a paired device token by device ID.
+   */
+  public revoke<ThrowOnError extends boolean = false>(
+    parameters: {
+      deviceID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "deviceID" }] }])
+    return (options?.client ?? this.client).delete<V2DeviceRevokeResponses, V2DeviceRevokeErrors, ThrowOnError>({
+      url: "/api/device/{deviceID}",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class Request extends HeyApiClient {
   /**
    * List pending permission requests
@@ -6401,6 +6545,156 @@ export class Permission3 extends HeyApiClient {
   private _saved?: Saved
   get saved(): Saved {
     return (this._saved ??= new Saved({ client: this.client }))
+  }
+}
+
+export class Jobs extends HeyApiClient {
+  /**
+   * List background jobs
+   *
+   * List background jobs alongside pending approvals for the dashboard.
+   */
+  public list<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<V2ApprovalJobsListResponses, V2ApprovalJobsListErrors, ThrowOnError>({
+      url: "/api/approval/jobs",
+      ...options,
+    })
+  }
+}
+
+export class Approval extends HeyApiClient {
+  /**
+   * List approval requests
+   *
+   * List unified approval requests with timeout/expires_at and audit fields.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      sessionID?: string
+      status?: ApprovalStatus
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "sessionID" },
+            { in: "query", key: "status" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2ApprovalListResponses, V2ApprovalListErrors, ThrowOnError>({
+      url: "/api/approval",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create approval request
+   *
+   * Create a unified approval request with per-request timeout (default 10min). Used by background agents.
+   */
+  public request<ThrowOnError extends boolean = false>(
+    parameters?: {
+      sessionID?: string
+      action?: string
+      resources?: Array<string>
+      timeout_ms?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "sessionID" },
+            { in: "body", key: "action" },
+            { in: "body", key: "resources" },
+            { in: "body", key: "timeout_ms" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<V2ApprovalRequestResponses, V2ApprovalRequestErrors, ThrowOnError>({
+      url: "/api/approval",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Get approval request
+   *
+   * Retrieve one approval request with timeout/expires_at and audit fields.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters: {
+      requestID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "requestID" }] }])
+    return (options?.client ?? this.client).get<V2ApprovalGetResponses, V2ApprovalGetErrors, ThrowOnError>({
+      url: "/api/approval/{requestID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Decide approval request
+   *
+   * Allow once/always or deny an approval request. Records who/when/device audit.
+   */
+  public decide<ThrowOnError extends boolean = false>(
+    parameters: {
+      requestID: string
+      decision?: ApprovalDecision
+      message?: string
+      actor?: string
+      deviceID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "requestID" },
+            { in: "body", key: "decision" },
+            { in: "body", key: "message" },
+            { in: "body", key: "actor" },
+            { in: "body", key: "deviceID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<V2ApprovalDecideResponses, V2ApprovalDecideErrors, ThrowOnError>({
+      url: "/api/approval/{requestID}/decide",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  private _jobs?: Jobs
+  get jobs(): Jobs {
+    return (this._jobs ??= new Jobs({ client: this.client }))
   }
 }
 
@@ -6987,6 +7281,196 @@ export class ProjectCopy2 extends HeyApiClient {
   }
 }
 
+export class AsyncRun extends HeyApiClient {
+  /**
+   * List async runs
+   *
+   * List async runs recorded for the current directory.
+   */
+  public list<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<V2AsyncRunListResponses, V2AsyncRunListErrors, ThrowOnError>({
+      url: "/api/async-run",
+      ...options,
+    })
+  }
+
+  /**
+   * Create async run
+   *
+   * Record a base commit and create one worktree per task.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      tasks?: Array<string>
+      review?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "tasks" },
+            { in: "body", key: "review" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<V2AsyncRunCreateResponses, V2AsyncRunCreateErrors, ThrowOnError>({
+      url: "/api/async-run",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Get async run
+   *
+   * Retrieve an async run by ID.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "runID" }] }])
+    return (options?.client ?? this.client).get<V2AsyncRunGetResponses, V2AsyncRunGetErrors, ThrowOnError>({
+      url: "/api/async-run/{runID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Replay async run
+   *
+   * Read durable session event history for each task and print the step log.
+   */
+  public replay<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "runID" }] }])
+    return (options?.client ?? this.client).get<V2AsyncRunReplayResponses, V2AsyncRunReplayErrors, ThrowOnError>({
+      url: "/api/async-run/{runID}/replay",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Schedules extends HeyApiClient {
+  /**
+   * List schedules
+   *
+   * List stored prompt schedules.
+   */
+  public list<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<V2SchedulesListResponses, V2SchedulesListErrors, ThrowOnError>({
+      url: "/api/schedules",
+      ...options,
+    })
+  }
+
+  /**
+   * Create schedule
+   *
+   * Create a prompt schedule. Spec is interval ('every 30m', 'every 2h') or daily time ('daily 09:30'). Fires SessionV2.prompt on schedule.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      sessionID?: string
+      prompt?: string
+      spec?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "sessionID" },
+            { in: "body", key: "prompt" },
+            { in: "body", key: "spec" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<V2SchedulesCreateResponses, V2SchedulesCreateErrors, ThrowOnError>({
+      url: "/api/schedules",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete schedule
+   *
+   * Delete a prompt schedule by ID.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters: {
+      scheduleID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "scheduleID" }] }])
+    return (options?.client ?? this.client).delete<V2SchedulesDeleteResponses, V2SchedulesDeleteErrors, ThrowOnError>({
+      url: "/api/schedules/{scheduleID}",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Spend extends HeyApiClient {
+  /**
+   * Get session spend
+   *
+   * Aggregate token usage and cost for one session from stored message token fields.
+   */
+  public session<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "id" }] }])
+    return (options?.client ?? this.client).get<V2SpendSessionResponses, V2SpendSessionErrors, ThrowOnError>({
+      url: "/api/session/{id}/spend",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get spend summary
+   *
+   * Aggregate token usage and cost across sessions updated since local midnight.
+   */
+  public summary<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<V2SpendSummaryResponses, V2SpendSummaryErrors, ThrowOnError>({
+      url: "/api/spend/summary",
+      ...options,
+    })
+  }
+}
+
 export class V2 extends HeyApiClient {
   private _health?: Health
   get health(): Health {
@@ -7028,9 +7512,19 @@ export class V2 extends HeyApiClient {
     return (this._credential ??= new Credential({ client: this.client }))
   }
 
+  private _device?: Device
+  get device(): Device {
+    return (this._device ??= new Device({ client: this.client }))
+  }
+
   private _permission?: Permission3
   get permission(): Permission3 {
     return (this._permission ??= new Permission3({ client: this.client }))
+  }
+
+  private _approval?: Approval
+  get approval(): Approval {
+    return (this._approval ??= new Approval({ client: this.client }))
   }
 
   private _fs?: Fs
@@ -7071,6 +7565,21 @@ export class V2 extends HeyApiClient {
   private _projectCopy?: ProjectCopy2
   get projectCopy(): ProjectCopy2 {
     return (this._projectCopy ??= new ProjectCopy2({ client: this.client }))
+  }
+
+  private _asyncRun?: AsyncRun
+  get asyncRun(): AsyncRun {
+    return (this._asyncRun ??= new AsyncRun({ client: this.client }))
+  }
+
+  private _schedules?: Schedules
+  get schedules(): Schedules {
+    return (this._schedules ??= new Schedules({ client: this.client }))
+  }
+
+  private _spend?: Spend
+  get spend(): Spend {
+    return (this._spend ??= new Spend({ client: this.client }))
   }
 }
 
