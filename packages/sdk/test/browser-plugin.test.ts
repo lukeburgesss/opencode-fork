@@ -374,6 +374,38 @@ test(
 )
 
 test(
+  "an action waiting for permission stays bound to its original desktop attachment",
+  () =>
+    Effect.gen(function* () {
+      const host = yield* fixture([{ action: "browser", resource: "*", effect: "ask" }])
+      const attached = yield* host.attach("original")
+      yield* host.rpc.state({ ...attached.input, state }, { location: host.location })
+      const asked = yield* host.opencode.events.subscribe().pipe(
+        Stream.filter((event) => event.type === "permission.asked"),
+        Stream.filter((event) => event.data.sessionID === host.context.sessionID),
+        Stream.runHead,
+        Effect.timeout("5 seconds"),
+        Effect.forkScoped({ startImmediately: true }),
+      )
+      const pending = yield* host
+        .execute({ type: "click", tabID: tab.id, ref: Browser.Ref.make("e1") })
+        .pipe(Effect.forkScoped)
+      const event = yield* Fiber.join(asked)
+      if (event._tag !== "Some") throw new Error("Expected a permission request")
+      const replacement = yield* host.attach("replacement")
+      yield* host.rpc.state({ ...replacement.input, state }, { location: host.location })
+      yield* host.opencode.permission.reply({
+        sessionID: host.context.sessionID,
+        requestID: event.value.data.id,
+        reply: "once",
+      })
+      expect((yield* Fiber.join(pending).pipe(Effect.flip)).message).toContain("Browser connection closed")
+      yield* Fiber.join(attached.lifetime)
+    }).pipe(Effect.scoped, Effect.runPromise),
+  15_000,
+)
+
+test(
   "uploads enforce server read permissions before any browser command",
   () =>
     Effect.gen(function* () {
