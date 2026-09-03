@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "opencode-remote",
+    "slug": "opencode-remote",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "newArchEnabled": false,
+    "extra": {
+      "opencodeBaseUrl": "http://localhost:4096"
+    }
+  }
+}

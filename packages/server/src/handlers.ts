@@ -16,7 +16,9 @@ import { ReferenceHandler } from "./handlers/reference"
 import { LocationHandler } from "./handlers/location"
 import { IntegrationHandler } from "./handlers/integration"
 import { CredentialHandler } from "./handlers/credential"
+import { DeviceHandler } from "./handlers/device"
 import { ProjectCopyHandler } from "./handlers/project-copy"
+import { AsyncRunHandler } from "./handlers/async-run"
 
 export const handlers = Layer.mergeAll(
   HealthHandler,
@@ -28,6 +30,7 @@ export const handlers = Layer.mergeAll(
   ProviderHandler,
   IntegrationHandler,
   CredentialHandler,
+  DeviceHandler,
   PermissionHandler,
   FileSystemHandler,
   CommandHandler,
@@ -37,4 +40,5 @@ export const handlers = Layer.mergeAll(
   QuestionHandler,
   ReferenceHandler,
   ProjectCopyHandler,
+  AsyncRunHandler,
 )

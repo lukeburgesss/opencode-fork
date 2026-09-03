@@ -26,6 +26,7 @@ import { WebCommand } from "./cli/cmd/web"
 import { PrCommand } from "./cli/cmd/pr"
 import { SessionCommand } from "./cli/cmd/session"
 import { DbCommand } from "./cli/cmd/db"
+import { AsyncReplayCommand, AsyncRunCommand } from "./cli/cmd/async-run"
 import { errorMessage } from "./util/error"
 import { PluginCommand } from "./cli/cmd/plug"
 import { Heap } from "./cli/heap"
@@ -99,6 +100,8 @@ const cli = yargs(args)
   .command(GithubCommand)
   .command(PrCommand)
   .command(SessionCommand)
+  .command(AsyncRunCommand)
+  .command(AsyncReplayCommand)
   .command(PluginCommand)
   .command(DbCommand)
   .fail((msg, err) => {

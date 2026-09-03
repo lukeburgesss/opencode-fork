@@ -1,4 +1,7 @@
 import { SessionV2 } from "@opencode-ai/core/session"
+import { Catalog } from "@opencode-ai/core/catalog"
+import { ProviderV2 } from "@opencode-ai/core/provider"
+import { ModelV2 } from "@opencode-ai/core/model"
 import { DateTime, Effect, Stream } from "effect"
 import { HttpApiBuilder, HttpApiSchema } from "effect/unstable/httpapi"
 import { Api } from "../api"
@@ -15,6 +18,31 @@ import { AbsolutePath } from "@opencode-ai/core/schema"
 
 const DefaultSessionsLimit = 50
 const DefaultSessionHistoryLimit = 50
+
+const ContextCompactionBuffer = 20_000
+const ContextOutputMax = 32_000
+const ContextPreserveMin = 2_000
+const ContextPreserveMax = 15_000
+
+function contextTokensTotal(tokens: { input: number; output: number; reasoning: number; cache: { read: number; write: number } }) {
+  return tokens.input + tokens.output + tokens.reasoning + tokens.cache.read + tokens.cache.write
+}
+
+function contextMaxOutput(output: number) {
+  return Math.min(output, ContextOutputMax) || ContextOutputMax
+}
+
+function contextUsable(input: { context: number; input?: number; output: number }) {
+  if (input.context === 0) return 0
+  const maxOutput = contextMaxOutput(input.output)
+  const reserved = Math.min(ContextCompactionBuffer, maxOutput)
+  if (input.input !== undefined) return Math.max(0, input.input - reserved)
+  return Math.max(0, input.context - maxOutput)
+}
+
+function contextPreserveBudget(usable: number) {
+  return Math.min(ContextPreserveMax, Math.max(ContextPreserveMin, Math.floor(usable * 0.25)))
+}
 
 export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handlers) =>
   Effect.gen(function* () {
@@ -326,6 +354,78 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
                 )
               }),
             ),
+          }
+        }),
+      )
+      .handle(
+        "session.contextUsage",
+        Effect.fn(function* (ctx) {
+          const catalog = yield* Catalog.Service
+          const info = yield* session.get(ctx.params.sessionID).pipe(
+            Effect.catchTag(
+              "Session.NotFoundError",
+              (error) =>
+                new SessionNotFoundError({
+                  sessionID: error.sessionID,
+                  message: `Session not found: ${error.sessionID}`,
+                }),
+            ),
+          )
+          const messages = yield* session.context(ctx.params.sessionID).pipe(
+            Effect.catchTag(
+              "Session.NotFoundError",
+              (error) =>
+                new SessionNotFoundError({
+                  sessionID: error.sessionID,
+                  message: `Session not found: ${error.sessionID}`,
+                }),
+            ),
+            Effect.catchTag("Session.MessageDecodeError", (error) => {
+              const ref = `err_${crypto.randomUUID().slice(0, 8)}`
+              return Effect.logError("failed to decode session message").pipe(
+                Effect.annotateLogs({ ref, sessionID: error.sessionID, messageID: error.messageID }),
+                Effect.andThen(
+                  Effect.fail(
+                    new UnknownError({ message: "Unexpected server error. Check server logs for details.", ref }),
+                  ),
+                ),
+              )
+            }),
+          )
+          const last = messages.findLast(
+            (msg) => msg.type === "assistant" && msg.tokens !== undefined && contextTokensTotal(msg.tokens) > 0,
+          )
+          const tokens =
+            last && last.type === "assistant" && last.tokens
+              ? last.tokens
+              : { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }
+          const used = contextTokensTotal(tokens)
+          const ref = (last && last.type === "assistant" ? last.model : undefined) ?? info.model
+          const fallback = ref ? undefined : yield* catalog.model.default()
+          const providerID = ref?.providerID ?? fallback?.providerID ?? ProviderV2.ID.make("unknown")
+          const modelID = (ref ? ref.id : undefined) ?? fallback?.id ?? ModelV2.ID.make("unknown")
+          const modelInfo = yield* catalog.model.get(providerID, modelID)
+          const contextLimit = modelInfo?.limit.context ?? 0
+          const usableValue = contextUsable({
+            context: contextLimit,
+            input: modelInfo?.limit.input,
+            output: modelInfo?.limit.output ?? 0,
+          })
+          const pct = usableValue > 0 ? Math.round((used / usableValue) * 100) : 0
+          const preserveBudget = contextPreserveBudget(usableValue)
+          const etaTurns =
+            usableValue <= 0 ? null : used >= usableValue ? 0 : Math.ceil((usableValue - used) / 10_000)
+          return {
+            data: {
+              used,
+              usable: usableValue,
+              pct,
+              cacheRead: tokens.cache.read,
+              cacheWrite: tokens.cache.write,
+              preserveBudget,
+              etaTurns,
+              model: { providerID, modelID, contextLimit },
+            },
           }
         }),
       )

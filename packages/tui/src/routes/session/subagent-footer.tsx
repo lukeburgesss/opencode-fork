@@ -40,7 +40,25 @@ export function SubagentFooter() {
     if (tokens <= 0) return
 
     const model = sync.data.provider.find((item) => item.id === last.providerID)?.models[last.modelID]
-    const pct = model?.limit.context ? `${Math.round((tokens / model.limit.context) * 100)}%` : undefined
+    const contextLimit = model?.limit.context ?? 0
+    const outputLimit = model?.limit.output ?? 32_000
+    const inputLimit = model?.limit.input
+    const maxOutput = Math.min(outputLimit, 32_000) || 32_000
+    const reserved = Math.min(20_000, maxOutput)
+    const usable = contextLimit === 0 ? 0 : inputLimit ? Math.max(0, inputLimit - reserved) : Math.max(0, contextLimit - maxOutput)
+    const pctNum = usable > 0 ? Math.round((tokens / usable) * 100) : 0
+    const pct = `${pctNum}%`
+    const context = usable > 0 ? `${Locale.number(tokens)}/${Locale.number(usable)} (${pct})` : Locale.number(tokens)
+    const cacheRead = last.tokens.cache.read
+    const cacheWrite = last.tokens.cache.write
+    const eta = usable <= 0 ? null : tokens >= usable ? 0 : Math.ceil((usable - tokens) / 10_000)
+    const meter = [
+      context,
+      `cache ${Locale.number(cacheRead)}/${Locale.number(cacheWrite)}`,
+      eta === null ? undefined : `compact in ~${eta}`,
+    ]
+      .filter(Boolean)
+      .join(" · ")
     const cost = session()?.cost ?? 0
 
     const money = new Intl.NumberFormat("en-US", {
@@ -49,7 +67,9 @@ export function SubagentFooter() {
     })
 
     return {
-      context: pct ? `${Locale.number(tokens)} (${pct})` : Locale.number(tokens),
+      context,
+      meter,
+      pctNum,
       cost: cost > 0 ? money.format(cost) : undefined,
     }
   })
@@ -86,11 +106,17 @@ export function SubagentFooter() {
               </text>
             </Show>
             <Show when={usage()}>
-              {(item) => (
-                <text fg={theme.textMuted} wrapMode="none">
-                  {[item().context, item().cost].filter(Boolean).join(" · ")}
-                </text>
-              )}
+              {(item) => {
+                const color = item().pctNum >= 85 ? theme.error : item().pctNum >= 60 ? theme.warning : theme.success
+                return (
+                  <text wrapMode="none">
+                    <span style={{ fg: color }}>{item().meter}</span>
+                    <Show when={item().cost}>
+                      {(cost) => <span style={{ fg: theme.textMuted }}> · {cost()}</span>}
+                    </Show>
+                  </text>
+                )
+              }}
             </Show>
           </box>
           <box flexDirection="row" gap={2}>

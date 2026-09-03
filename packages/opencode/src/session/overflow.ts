@@ -6,6 +6,9 @@ import { ProviderTransform } from "@/provider/transform"
 import type { MessageV2 } from "./message-v2"
 
 const COMPACTION_BUFFER = 20_000
+const PRESERVE_MIN_TOKENS = 2_000
+const PRESERVE_MAX_TOKENS = 15_000
+const ETA_TOKENS_PER_TURN = 10_000
 
 export function usable(input: { cfg: ConfigV1.Info; model: Provider.Model; outputTokenMax?: number }) {
   const context = input.model.limit.context
@@ -32,3 +35,36 @@ export function isOverflow(input: {
     input.tokens.total || input.tokens.input + input.tokens.output + input.tokens.cache.read + input.tokens.cache.write
   return count >= usable(input)
 }
+
+export function contextUsage(input: {
+  tokens: SessionV1.Assistant["tokens"]
+  model: Provider.Model
+  cfg: ConfigV1.Info
+  outputTokenMax?: number
+}) {
+  const used =
+    input.tokens.input + input.tokens.output + input.tokens.reasoning + input.tokens.cache.read + input.tokens.cache.write
+  const usableValue = usable(input)
+  const pct = usableValue > 0 ? Math.round((used / usableValue) * 100) : 0
+  const preserveBudget =
+    input.cfg.compaction?.preserve_recent_tokens ??
+    Math.min(PRESERVE_MAX_TOKENS, Math.max(PRESERVE_MIN_TOKENS, Math.floor(usableValue * 0.25)))
+  const etaTurns =
+    usableValue <= 0 ? null : used >= usableValue ? 0 : Math.ceil((usableValue - used) / ETA_TOKENS_PER_TURN)
+  return {
+    used,
+    usable: usableValue,
+    pct,
+    cacheRead: input.tokens.cache.read,
+    cacheWrite: input.tokens.cache.write,
+    preserveBudget,
+    etaTurns,
+    model: {
+      providerID: input.model.providerID,
+      modelID: input.model.id,
+      contextLimit: input.model.limit.context,
+    },
+  }
+}
+
+export * as SessionOverflow from "./overflow"

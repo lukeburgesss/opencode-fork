@@ -18,6 +18,7 @@ import {
 } from "../errors"
 import { Agent } from "@opencode-ai/schema/agent"
 import { Model } from "@opencode-ai/schema/model"
+import { Provider } from "@opencode-ai/schema/provider"
 import { Location } from "@opencode-ai/schema/location"
 import { Revert } from "@opencode-ai/schema/revert"
 import { SessionEvent } from "@opencode-ai/schema/session-event"
@@ -102,6 +103,21 @@ export const SessionsQuery = Schema.Struct({
   subpath: RelativePath.pipe(Schema.optional),
   cursor: SessionsQueryCursor.pipe(Schema.optional),
 }).annotate({ identifier: "SessionsQuery" })
+
+export const SessionContextUsage = Schema.Struct({
+  used: Schema.Finite,
+  usable: Schema.Finite,
+  pct: Schema.Finite,
+  cacheRead: Schema.Finite,
+  cacheWrite: Schema.Finite,
+  preserveBudget: Schema.Finite,
+  etaTurns: Schema.Union([Schema.Finite, Schema.Null]),
+  model: Schema.Struct({
+    providerID: Provider.ID,
+    modelID: Model.ID,
+    contextLimit: Schema.Finite,
+  }),
+}).annotate({ identifier: "SessionContextUsage" })
 
 export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLocationMiddleware: Context.Key<I, S>) =>
   HttpApiGroup.make("server.session")
@@ -300,6 +316,22 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
             identifier: "v2.session.context",
             summary: "Get session context",
             description: "Retrieve the active context messages for a session (all messages after the last compaction).",
+          }),
+        ),
+    )
+    .add(
+      HttpApiEndpoint.get("session.contextUsage", "/api/session/:sessionID/context-usage", {
+        params: { sessionID: Session.ID },
+        success: Schema.Struct({ data: SessionContextUsage }),
+        error: [SessionNotFoundError, UnknownError],
+      })
+        .middleware(sessionLocationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.contextUsage",
+            summary: "Get session context usage",
+            description:
+              "Retrieve live context and cache usage for a session, including usable window, preserve budget, and estimated turns until compaction.",
           }),
         ),
     )

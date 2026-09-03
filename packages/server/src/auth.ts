@@ -49,6 +49,22 @@ export function authorized(credentials: DecodedCredentials, config: Info) {
   )
 }
 
+export function bearerToken(header: string | undefined) {
+  const match = /^Bearer\s+(.+)$/i.exec(header ?? "")
+  if (!match) return undefined
+  const token = match[1].trim()
+  if (!token) return undefined
+  return token
+}
+
+export function deviceHeader(token: string) {
+  return `Bearer ${token}`
+}
+
+export function deviceHeaders(token: string) {
+  return { Authorization: deviceHeader(token) }
+}
+
 export function header(credentials?: Credentials) {
   const password = credentials?.password ?? process.env.OPENCODE_SERVER_PASSWORD
   if (!password) return undefined

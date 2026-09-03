@@ -5,6 +5,8 @@ import { useDirectory } from "../../context/directory"
 import { useConnected } from "../../component/use-connected"
 import { createStore } from "solid-js/store"
 import { useRoute } from "../../context/route"
+import type { AssistantMessage } from "@opencode-ai/sdk/v2"
+import { Locale } from "../../util/locale"
 
 export function Footer() {
   const { theme } = useTheme()
@@ -19,6 +21,38 @@ export function Footer() {
   })
   const directory = useDirectory()
   const connected = useConnected()
+
+  const meter = createMemo(() => {
+    if (route.data.type !== "session") return
+    const msgs = sync.data.message[route.data.sessionID] ?? []
+    const last = msgs.findLast(
+      (item): item is AssistantMessage => item.role === "assistant" && item.tokens.output > 0,
+    )
+    if (!last) return
+    const used =
+      last.tokens.input + last.tokens.output + last.tokens.reasoning + last.tokens.cache.read + last.tokens.cache.write
+    if (used <= 0) return
+    const model = sync.data.provider.find((item) => item.id === last.providerID)?.models[last.modelID]
+    const contextLimit = model?.limit.context ?? 0
+    const outputLimit = model?.limit.output ?? 32_000
+    const inputLimit = model?.limit.input
+    const maxOutput = Math.min(outputLimit, 32_000) || 32_000
+    const reserved = Math.min(20_000, maxOutput)
+    const usable =
+      contextLimit === 0 ? 0 : inputLimit ? Math.max(0, inputLimit - reserved) : Math.max(0, contextLimit - maxOutput)
+    if (usable <= 0) return
+    const pctNum = Math.round((used / usable) * 100)
+    const color = pctNum >= 85 ? theme.error : pctNum >= 60 ? theme.warning : theme.success
+    const eta = used >= usable ? 0 : Math.ceil((usable - used) / 10_000)
+    return {
+      text: [
+        `${Locale.number(used)}/${Locale.number(usable)} (${pctNum}%)`,
+        `cache ${Locale.number(last.tokens.cache.read)}/${Locale.number(last.tokens.cache.write)}`,
+        `compact in ~${eta}`,
+      ].join(" · "),
+      color,
+    }
+  })
 
   const [store, setStore] = createStore({
     welcome: false,
@@ -60,6 +94,13 @@ export function Footer() {
             </text>
           </Match>
           <Match when={connected()}>
+            <Show when={meter()}>
+              {(item) => (
+                <text wrapMode="none">
+                  <span style={{ fg: item().color }}>{item().text}</span>
+                </text>
+              )}
+            </Show>
             <Show when={permissions().length > 0}>
               <text fg={theme.warning}>
                 <span style={{ fg: theme.warning }}>△</span> {permissions().length} Permission

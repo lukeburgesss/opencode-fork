@@ -16,6 +16,7 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Layer, Option } from "effect"
 import { Api } from "./api"
 import { ServerAuth } from "./auth"
+import { DeviceStore } from "./device"
 import { handlers } from "./handlers"
 import { authorizationLayer } from "./middleware/authorization"
 import { schemaErrorLayer } from "./middleware/schema-error"
@@ -32,6 +33,7 @@ const applicationServices = LayerNode.group([
   PermissionSaved.node,
   PtyTicket.node,
   Credential.node,
+  DeviceStore.node,
   PtyEnvironment.node,
   LocationServiceMap.node,
 ])
