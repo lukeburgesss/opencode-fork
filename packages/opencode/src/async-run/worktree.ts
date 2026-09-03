@@ -58,4 +58,43 @@ export const remove = Effect.fn("AsyncRunWorktree.remove")(function* (input: { r
     })
 })
 
+export class MergeConflict extends Schema.TaggedErrorClass<MergeConflict>()("AsyncRunMergeConflict", {
+  branch: Schema.String,
+  output: Schema.String,
+}) {}
+
+// Stage everything and commit inside a worker worktree. No-op when clean.
+export const commitAll = Effect.fn("AsyncRunWorktree.commitAll")(function* (input: {
+  dir: string
+  message: string
+}) {
+  const status = yield* git(["status", "--porcelain"], input.dir)
+  if (status.code !== 0) return yield* new WorktreeError({ message: status.stderr.trim() || "git status failed" })
+  if (!status.text.trim()) return false
+  const add = yield* git(["add", "-A"], input.dir)
+  if (add.code !== 0) return yield* new WorktreeError({ message: add.stderr.trim() || "git add failed" })
+  const commit = yield* git(["commit", "-m", input.message], input.dir)
+  if (commit.code !== 0) return yield* new WorktreeError({ message: commit.stderr.trim() || "git commit failed" })
+  return true
+})
+
+// Merge a worker branch into the repo checkout. Returns "merged", or fails
+// with MergeConflict (leaving the repo clean via --abort) for escalation.
+export const merge = Effect.fn("AsyncRunWorktree.merge")(function* (input: { repo: string; branch: string }) {
+  const result = yield* git(["merge", "--no-ff", "--no-edit", input.branch], input.repo)
+  if (result.code === 0) return "merged" as const
+  yield* git(["merge", "--abort"], input.repo)
+  return yield* new MergeConflict({ branch: input.branch, output: (result.stderr + result.text).trim() })
+})
+
+export const diffStat = Effect.fn("AsyncRunWorktree.diffStat")(function* (input: {
+  repo: string
+  base: string
+  branch: string
+}) {
+  const result = yield* git(["diff", "--stat", `${input.base}...${input.branch}`], input.repo)
+  if (result.code !== 0) return yield* new WorktreeError({ message: result.stderr.trim() || "git diff failed" })
+  return result.text.trim()
+})
+
 export * as AsyncRunWorktree from "./worktree"

@@ -2,6 +2,7 @@ import { Effect } from "effect"
 import { SessionV2 } from "@opencode-ai/core/session"
 import { SessionID } from "@/session/schema"
 import { get } from "./manager"
+import { formatReplay, pendingIntents, read } from "./log"
 import { RunInfo } from "./schema"
 
 export function formatStepLine(input: { type: string; detail: string }): string {
@@ -49,6 +50,15 @@ export const replaySession = Effect.fn("AsyncRunReplay.session")(function* (inpu
 export const replayRun = Effect.fn("AsyncRunReplay.run")(function* (input: { directory: string; id: string }) {
   const info = yield* get({ directory: input.directory, id: input.id })
   const lines: Array<string> = formatRunLines(info)
+  const events = yield* read({ directory: input.directory, runID: input.id }).pipe(
+    Effect.orElseSucceed(() => []),
+  )
+  for (const line of formatReplay(events)) lines.push(`  ${line}`)
+  const pending = pendingIntents(events)
+  if (pending.length > 0) {
+    lines.push(`pending ${pending.length} unfinished action(s) — resume to continue:`)
+    for (const event of pending) lines.push(`  ! ${event.action}${event.task ? ` [${event.task}]` : ""}`)
+  }
   for (const task of info.tasks) {
     if (!task.sessionID) continue
     const steps = yield* replaySession({ sessionID: task.sessionID }).pipe(Effect.orElseSucceed(() => []))

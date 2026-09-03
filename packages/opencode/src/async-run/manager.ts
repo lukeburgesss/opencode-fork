@@ -31,6 +31,7 @@ export const create = Effect.fn("AsyncRunManager.create")(function* (input: {
   directory: string
   tasks: ReadonlyArray<string>
   review: boolean
+  serial?: boolean
 }) {
   if (input.tasks.length === 0) return yield* new ManagerError({ message: "At least one task is required" })
   const fs = yield* FileSystem.FileSystem
@@ -55,6 +56,8 @@ export const create = Effect.fn("AsyncRunManager.create")(function* (input: {
     tasks: created,
     review: input.review,
     createdAt: Date.now(),
+    mode: input.serial === true || created.length < 2 ? "single" : "parallel",
+    serial: input.serial ?? false,
   })
   yield* fs.makeDirectory(yield* runsDirectory(input.directory), { recursive: true }).pipe(
     Effect.mapError((cause) => new ManagerError({ message: String(cause) })),
@@ -65,6 +68,7 @@ export const create = Effect.fn("AsyncRunManager.create")(function* (input: {
   yield* fs.writeFileString(yield* runFile(input.directory, id), JSON.stringify(encoded, null, 2)).pipe(
     Effect.mapError((cause) => new ManagerError({ message: String(cause) })),
   )
+  if (info.serial) return { info, worktrees: [] as Array<string> }
   const tasks = yield* Effect.forEach(created, (task) =>
     add({ repo: input.directory, path: task.directory, branch: task.branch, base }).pipe(
       Effect.mapError((cause) => new ManagerError({ message: cause.message })),

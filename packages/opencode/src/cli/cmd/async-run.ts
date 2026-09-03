@@ -30,15 +30,27 @@ export const AsyncRunCommand = effectCmd({
         describe: "attach a background reviewer agent to each task",
         type: "boolean",
         default: false,
+      })
+      .option("serial", {
+        describe: "force single-agent mode: no worktrees, no fan-out",
+        type: "boolean",
+        default: false,
       }),
-  handler: Effect.fn("Cli.asyncRun")(function* (args: { tasks: string; review: boolean }) {
+  handler: Effect.fn("Cli.asyncRun")(function* (args: { tasks: string; review: boolean; serial: boolean }) {
     const { create } = yield* Effect.promise(() => import("@/async-run/manager"))
+    const { estimateFanOut } = yield* Effect.promise(() => import("@/async-run/estimate"))
     const layers = yield* platform
     const tasks = args.tasks
       .split(",")
       .map((task) => task.trim())
       .filter(Boolean)
-    const result = yield* create({ directory: process.cwd(), tasks, review: args.review }).pipe(
+    if (!args.serial && tasks.length > 1) {
+      const estimate = estimateFanOut({ tasks: tasks.length })
+      UI.println(
+        `fan-out ${estimate.workers} workers ~${estimate.tokens.toLocaleString()} tokens (~$${estimate.usd})`,
+      )
+    }
+    const result = yield* create({ directory: process.cwd(), tasks, review: args.review, serial: args.serial }).pipe(
       Effect.provide(layers),
       Effect.catchTag("AsyncRunManagerError", (cause) => fail(cause.message)),
     )
@@ -60,11 +72,23 @@ export const AsyncReplayCommand = effectCmd({
   handler: Effect.fn("Cli.asyncReplay")(function* (args: { runID: string }) {
     const { get } = yield* Effect.promise(() => import("@/async-run/manager"))
     const { formatRunLines } = yield* Effect.promise(() => import("@/async-run/replay"))
+    const { formatReplay, pendingIntents, read } = yield* Effect.promise(() => import("@/async-run/log"))
     const layers = yield* platform
-    const info = yield* get({ directory: process.cwd(), id: args.runID }).pipe(
+    const run = Effect.gen(function* () {
+      const info = yield* get({ directory: process.cwd(), id: args.runID })
+      const events = yield* read({ directory: process.cwd(), runID: args.runID }).pipe(
+        Effect.orElseSucceed(() => []),
+      )
+      const lines = formatRunLines(info)
+      for (const line of formatReplay(events)) lines.push(`  ${line}`)
+      for (const event of pendingIntents(events))
+        lines.push(`  ! ${event.action}${event.task ? ` [${event.task}]` : ""} (pending)`)
+      return lines
+    })
+    const lines = yield* run.pipe(
       Effect.provide(layers),
       Effect.catchTag("AsyncRunManagerError", (cause) => fail(cause.message)),
     )
-    for (const line of formatRunLines(info)) UI.println(line)
+    for (const line of lines) UI.println(line)
   }),
 })
